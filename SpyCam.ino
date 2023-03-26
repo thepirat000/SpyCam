@@ -286,7 +286,8 @@ void refreshConfigFromWeb() {
     String configString = response.body.substring(response.body.indexOf(":") + 1, response.body.length());
 
     if (lastConfigString != configString) {
-      Serial.println("New params: " + configString);
+      
+      Serial.println(String(lastConfigString.length() == 0 ? "Initial" : "New") + " params: " + configString);
       lastConfigString = configString;
       cycle_count = 0;
 
