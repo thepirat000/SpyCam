@@ -7,7 +7,7 @@
 const String DEVICE_NAME = "CAM1";
 
 // STA config
-const char* SSID = "ThePirat++"; // "THEPIRAT";
+const char* SSID = "THEPIRAT"; // "ThePirat++";
 const String PASSWORD = "333" + String(175 * 23029);
 IPAddress LOCAL_IP(192, 168, 15, 3);
 IPAddress GATEWAY(192, 168, 15, 1);
@@ -30,6 +30,7 @@ struct Params
     int period_gs_cloud = 1;
     int period_sd_card = 2;
     int period_config_refresh = 5;
+    int period_restart = 100;
     bool flash = false;
     int frame_size = 13;
     bool vflip = 0;

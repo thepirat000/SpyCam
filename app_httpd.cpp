@@ -307,7 +307,7 @@ static esp_err_t index_handler(httpd_req_t *req){
 
 static esp_err_t any_handler(httpd_req_t *req){
     String url = String(req->uri);
-    //Serial.println("URL: " + url);
+    Serial.println("URL: " + url);
 
     if (url == "/") {
       return index_handler(req);

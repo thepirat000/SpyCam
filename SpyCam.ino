@@ -67,17 +67,21 @@ void loop() {
   // if WiFi is down, try reconnecting
   reconnectWifi();
 
-  if (cycle_count % PARAMS.period_gs_cloud == 0) {
+  if (PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
     // Capture and send to google drive
     String response = CaptureAndSend();
     Serial.println(response);    
   }
-  if (cycle_count % PARAMS.period_sd_card == 0) {
+  if (PARAMS.period_sd_card > 0 && (cycle_count % PARAMS.period_sd_card == 0)) {
     // Capture and store to SD_CARD
     CaptureAndStore(1);
   }
-  if (cycle_count % PARAMS.period_config_refresh == 0) {
+  if (PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) {
     refreshConfigFromWeb();
+  }
+  if (PARAMS.period_restart > 0 && (cycle_count % PARAMS.period_restart == 0)) {
+    Serial.println("Will restart...");
+    ESP.restart();
   }
 
   const unsigned long end_time = millis();
@@ -293,8 +297,8 @@ void refreshConfigFromWeb() {
 
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality}
       unsigned long epoch;
-      sscanf(response.body.c_str(), "%U:%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
-      &PARAMS.period_config_refresh, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality);
+      sscanf(response.body.c_str(), "%U:%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
+      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality);
 
       // Set clock time
       rtc.setTime(epoch);
