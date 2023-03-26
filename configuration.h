@@ -7,7 +7,7 @@
 const String DEVICE_NAME = "CAM1";
 
 // STA config
-const char* SSID = "THEPIRAT";
+const char* SSID = "ThePirat++"; // "THEPIRAT";
 const String PASSWORD = "333" + String(175 * 23029);
 IPAddress LOCAL_IP(192, 168, 15, 3);
 IPAddress GATEWAY(192, 168, 15, 1);
