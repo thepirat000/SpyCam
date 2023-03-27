@@ -42,6 +42,7 @@ void setup() {
 
   pinMode(LED_BUILTIN_GPIO_NUM, OUTPUT);
   pinMode(FLASH_GPIO_NUM, OUTPUT);
+  flashOff();
   
   SD_init(("/" + DEVICE_NAME).c_str());
 
@@ -57,14 +58,12 @@ void setup() {
 }
 
 // **** LOOP **** //
-unsigned int cycle_count = 0;
+unsigned int cycle_count = 1;
 
 void loop() {
   const unsigned long start_time = millis();
-  cycle_count++;
 
-  Serial.println("--cycle " + String(cycle_count) + "--");
-
+  Serial.printf("-- Cycle: %d - Signal: %d dBm\r\n", cycle_count, WiFi.RSSI());
   // if WiFi is down, try reconnecting
   reconnectWifi();
 
@@ -84,6 +83,8 @@ void loop() {
     Serial.println("Will restart...");
     ESP.restart();
   }
+
+  cycle_count++;
 
   const unsigned long end_time = millis();
 
@@ -150,6 +151,7 @@ bool startWiFi() {
   
   if (connected) {
       // Start the camera web server
+      Serial.printf("Connected to %s. Signal: %d dBm\r\n", SSID, WiFi.RSSI());
       startCameraServer();
       Serial.println("Web Server Ready! (STA) Use 'http://" + WiFi.localIP().toString() + "' to connect");
       Serial.println("Web Server Ready! (AP) Use 'http://" + WiFi.softAPIP().toString() + "' to connect");
@@ -183,7 +185,7 @@ camera_fb_t* TakePhoto() {
 }
 
 String CaptureAndSend() {
-  Serial.println("--CAPTURE & SEND--");
+  Serial.println("-- CAPTURE & SEND --");
 
   String body = "";
   camera_fb_t* fb = TakePhoto();  
@@ -259,7 +261,7 @@ String CaptureAndSend() {
 }
 
 String CaptureAndStore(int count) {
-  Serial.println("--CAPTURE & STORE--");
+  Serial.println("-- CAPTURE & STORE --");
 
   for(int i = 0; i < count; i++) {
     camera_fb_t* fb = TakePhoto();  
@@ -283,7 +285,7 @@ String CaptureAndStore(int count) {
 }
 
 void refreshConfigFromWeb() {
-  Serial.println("--CONFIG REFRESH--");
+  Serial.println("-- CONFIG REFRESH --");
 
   // Call getConfig google script and store in PARAMS
   HttpResponse response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, SCRIPT_URL_GET_CONFIG);
@@ -293,32 +295,33 @@ void refreshConfigFromWeb() {
 
   if (response.status == 200 && response.body.indexOf(":") > 0) {
     String configString = response.body.substring(response.body.indexOf(":") + 1, response.body.length());
+    unsigned long epoch;
 
     if (lastConfigString != configString) {
-      
       Serial.println(String(lastConfigString.length() == 0 ? "Initial" : "New") + " params: " + configString);
       lastConfigString = configString;
-      cycle_count = 0;
+      cycle_count = 1;
 
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality}
-      unsigned long epoch;
       sscanf(response.body.c_str(), "%U:%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
       &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality);
-
-      // Set clock time
-      rtc.setTime(epoch);
-
-      Serial.println(rtc.getTime("Set clock to: %A, %B %d %Y %H:%M:%S"));
+      Serial.printf("New values\r\nepoch: %U, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d\r\n", 
+        epoch, PARAMS.min_cycle_seconds, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
+        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality);
 
       // Set cam settings
       sensor_t * s = esp_camera_sensor_get();
       s->set_framesize(s, (framesize_t)PARAMS.frame_size); 
       s->set_vflip(s, PARAMS.vflip); 
       s->set_quality(s, PARAMS.quality); 
-      
     } else {
       Serial.println("Params didn't change");
+      sscanf(response.body.c_str(), "%U:%*s", &epoch);
     }
+
+    // Set clock time
+    rtc.setTime(epoch);
+    Serial.println(rtc.getTime("Set clock to: %A, %B %d %Y %H:%M:%S"));
   }
 }
 
