@@ -17,6 +17,7 @@ Notes:
 #include <WiFiClientSecure.h>
 #include <ESP32Time.h>
 #include "Base64.h"
+#include <esp_wifi.h>
 
 #include "configuration.h"
 #include "esp_camera.h"
@@ -115,6 +116,10 @@ bool initCamera() {
 
 bool startWiFi() {
   WiFi.mode(WIFI_AP_STA);
+
+  // The following two lines are needed just in case someone has put the device in LR mode previously
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
 
   // Setup AP
   WiFi.softAP(SOFT_AP_SSID, SOFT_AP_PASSWORD); 
