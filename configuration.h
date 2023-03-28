@@ -32,9 +32,9 @@ struct Params
     int period_config_refresh = 5;
     int period_restart = 100;
     bool flash = false;
-    int frame_size = 13;
+    int frame_size = 12;
     bool vflip = 0;
-    int quality = 10;
+    int quality = 14;
 } PARAMS;
 
 #endif // CONFIGURATION_H

@@ -42,8 +42,8 @@ camera_config_t get_default_camera_config() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  config.frame_size = FRAMESIZE_UXGA;  //FRAMESIZE_SVGA
-  config.jpeg_quality = 15; // 10 - 63
+  config.frame_size = FRAMESIZE_SXGA;
+  config.jpeg_quality = 14; // 10 - 63
   config.fb_count = 2;
   return config;
 }

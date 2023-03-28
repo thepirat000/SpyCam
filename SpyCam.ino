@@ -106,11 +106,9 @@ bool initCamera() {
     return false;
   }
 
-  // Set the default cam config and discard first image
-  /*sensor_t * s = esp_camera_sensor_get();
-  s->set_framesize(s, get_default_camera_config().frame_size); 
-  camera_fb_t* fb = esp_camera_fb_get();  
-  esp_camera_fb_return(fb);*/
+  // Set the default frame_size config
+  sensor_t * s = esp_camera_sensor_get();
+  s->set_framesize(s, cam_config.frame_size); 
 
   return true;
 }
