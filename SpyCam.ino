@@ -42,6 +42,8 @@ void setup() {
 
   pinMode(LED_BUILTIN_GPIO_NUM, OUTPUT);
   pinMode(FLASH_GPIO_NUM, OUTPUT);
+  pinMode(PIR_SENSOR_NUM, INPUT);
+
   flashOff();
   
   SD_init(("/" + DEVICE_NAME).c_str());
@@ -64,12 +66,13 @@ void loop() {
   const unsigned long start_time = millis();
 
   Serial.printf("-- Cycle: %d - Signal: %d dBm\r\n", cycle_count, WiFi.RSSI());
+
   // if WiFi is down, try reconnecting
   reconnectWifi();
 
   if (PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
     // Capture and send to google drive
-    String response = CaptureAndSend();
+    String response = CaptureAndSend(false);
     Serial.println(response);    
   }
   if (PARAMS.period_sd_card > 0 && (cycle_count % PARAMS.period_sd_card == 0)) {
@@ -88,11 +91,26 @@ void loop() {
 
   const unsigned long end_time = millis();
 
-  const int elapsed_seconds = (end_time - start_time) / 1000;
-  const int sleep_seconds = max(0, PARAMS.min_cycle_seconds - elapsed_seconds);
+  const unsigned long elapsed_ms = end_time - start_time;
+  const unsigned long sleep_ms = max(0UL, (PARAMS.min_cycle_seconds * 1000) - elapsed_ms);
+  const unsigned long sleep_end_time = end_time + sleep_ms;
 
-  Serial.printf("Elapsed %d seconds. Min %d seconds. Will delay %d secs...\r\n", elapsed_seconds, PARAMS.min_cycle_seconds, sleep_seconds);
-  delay(sleep_seconds * 1000);
+  Serial.printf("Elapsed %d seconds. Min %d seconds. Will delay %d secs if no motion detected...\r\n", (elapsed_ms / 1000), PARAMS.min_cycle_seconds, (sleep_ms / 1000));
+
+  while(millis() < sleep_end_time) {
+    int motion_detected = digitalRead(PIR_SENSOR_NUM);
+    if (motion_detected == HIGH) {
+      Serial.println("Motion detected !");
+      const unsigned long motion_start_time = millis();
+      String response = CaptureAndSend(true);
+      Serial.println(response);
+      const unsigned long motion_elapsed_ms = millis() - motion_start_time;
+      
+      const unsigned long motion_sleep_ms = min(sleep_end_time - millis(), max(0UL, MIN_DELAY_MOTION_MS - motion_elapsed_ms));
+      Serial.println("Will delay on motion for " + String(motion_sleep_ms) + " ms");
+      delay(motion_sleep_ms);
+    }
+  }
 }
 
 bool initCamera() {
@@ -182,9 +200,8 @@ camera_fb_t* TakePhoto() {
   return fb;
 }
 
-String CaptureAndSend() {
+String CaptureAndSend(bool sendTelegram) {
   Serial.println("-- CAPTURE & SEND --");
-
   String body = "";
   camera_fb_t* fb = TakePhoto();  
   if(!fb) {
@@ -194,6 +211,7 @@ String CaptureAndSend() {
 
   WiFiClientSecure client_upload;
   client_upload.setInsecure();
+  ledOn();
 
   if (client_upload.connect(SCRIPT_DOMAIN, 443)) {
     String head = "--ThePiratCam\r\nContent-Disposition: form-data; name=\"device\"\r\n\r\n" + DEVICE_NAME + "\r\n" \ 
@@ -249,13 +267,63 @@ String CaptureAndSend() {
       response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
     }
     body = response.body;
+
+    if (sendTelegram && body.startsWith("http")) {
+      SendTelegram(body);
+    }
   }
   else {
     esp_camera_fb_return(fb);
     Serial.printf("Connect to %s failed.", SCRIPT_DOMAIN);
   }
-  
+
+  ledOff();
+
   return body;
+}
+
+void SendTelegram(String photoUrl) {
+  Serial.println("Will send telegram");
+  // TODO: urlencode everything....
+  String caption = "[markdown](http://test.com)";
+  String url = "bot" + String(PARAMS.telegram_token) + "/sendPhoto?chat_id=" + PARAMS.telegram_chat_id + "&parse_mode=Markdown&caption=" + caption + "&photo=" + photoUrl;
+  Serial.println(url);
+  Serial.println(urlencode(url));
+  HttpResponse response = GetHttpGetResponseBody("api.telegram.org", 443, urlencode(url).c_str());
+
+}
+
+String urlencode(String str)
+{
+    String encodedString="";
+    char c;
+    char code0;
+    char code1;
+    char code2;
+    for (int i =0; i < str.length(); i++){
+      c=str.charAt(i);
+      if (c == ' '){
+        encodedString+= '+';
+      } else if (isalnum(c)){
+        encodedString+=c;
+      } else{
+        code1=(c & 0xf)+'0';
+        if ((c & 0xf) >9){
+            code1=(c & 0xf) - 10 + 'A';
+        }
+        c=(c>>4)&0xf;
+        code0=c+'0';
+        if (c > 9){
+            code0=c - 10 + 'A';
+        }
+        code2='\0';
+        encodedString+='%';
+        encodedString+=code0;
+        encodedString+=code1;
+      }
+      yield();
+    }
+    return encodedString;
 }
 
 String CaptureAndStore(int count) {
@@ -300,12 +368,13 @@ void refreshConfigFromWeb() {
       lastConfigString = configString;
       cycle_count = 1;
 
-      //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality}
-      sscanf(response.body.c_str(), "%U:%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
-      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality);
-      Serial.printf("New values\r\nepoch: %U, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d\r\n", 
+      //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality},${telegram_chat_id},${re}
+      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%12[^,],%49s", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
+      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality, &PARAMS.telegram_chat_id, &PARAMS.telegram_token);
+      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d. chat_id: %s. token: %s\r\n", 
         epoch, PARAMS.min_cycle_seconds, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
-        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality);
+        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality,
+        PARAMS.telegram_chat_id, PARAMS.telegram_token);
 
       // Set cam settings
       sensor_t * s = esp_camera_sensor_get();
