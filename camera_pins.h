@@ -17,6 +17,7 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 #define FLASH_GPIO_NUM    4
+#define PIR_SENSOR_NUM    GPIO_NUM_13
 
 #define LED_BUILTIN_GPIO_NUM 33
 
