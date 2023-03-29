@@ -1,17 +1,12 @@
-
 /* ThePirat 2023
 
 Requisites:
 - Use esp32 library version 1.0.6 
 - Board Type: AI Thinker
+- Google App Scripts 
 
 Notes:
-- Original app_httpd.cpp file from Espressif Systems modified to:
-  - Remove face recognition
-  - Use a single URI handler for all the URLs (control, status & capture)
-  - Removing the stream server (temp)
-  - Use config.max_open_sockets = 2 (temp)
-
+- Connect the PIR sensor to the GPIO 13
 */
 
 #include <WiFiClientSecure.h>
@@ -53,7 +48,7 @@ void setup() {
   startWiFi();
 
   initCamera();
-
+  
   refreshConfigFromWeb();
 
   ledOff();
@@ -71,7 +66,7 @@ void loop() {
   reconnectWifi();
 
   if (PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
-    // Capture and send to google drive
+    // Capture image and send to google drive
     String response = CaptureAndSend(false);
     Serial.println(response);    
   }
@@ -102,19 +97,21 @@ void loop() {
     if (motion_detected == HIGH) {
       Serial.println("Motion detected !");
       const unsigned long motion_start_time = millis();
+      // Upload image and notify
       String response = CaptureAndSend(true);
       Serial.println(response);
       const unsigned long motion_elapsed_ms = millis() - motion_start_time;
-      
-      const unsigned long motion_sleep_ms = min(sleep_end_time - millis(), max(0UL, MIN_DELAY_MOTION_MS - motion_elapsed_ms));
-      Serial.println("Will delay on motion for " + String(motion_sleep_ms) + " ms");
+      const unsigned long A = sleep_end_time - millis(); // ms for the next main cycle
+      const unsigned long B = MIN_DELAY_MOTION_MS > motion_elapsed_ms ? MIN_DELAY_MOTION_MS - motion_elapsed_ms : 0; // ms for the next motion cycle
+      const unsigned long motion_sleep_ms = min(A, B);
+      Serial.println("A: " + String(A) + " B: " + String(B) + " Motion elapsed " + String(motion_elapsed_ms) + " ms. Will delay on motion for " + String(motion_sleep_ms) + " ms");
       delay(motion_sleep_ms);
     }
   }
 }
 
 bool initCamera() {
-  esp_camera_deinit();
+  //esp_camera_deinit();
 
   camera_config_t cam_config = get_default_camera_config();
   esp_err_t err = esp_camera_init(&cam_config);
@@ -127,6 +124,16 @@ bool initCamera() {
   // Set the default frame_size config
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, cam_config.frame_size); 
+
+  /* // Workaround to discard first images and give AWB time to initialize
+  for(int i = 0; i < (cam_config.fb_count + 1); i++) {
+    camera_fb_t* fb;
+    fb = esp_camera_fb_get();  
+    delay(500);
+    esp_camera_fb_return(fb);
+    fb = NULL;
+  }
+  */
 
   return true;
 }
@@ -222,7 +229,9 @@ String CaptureAndSend(bool sendTelegram) {
     int extraLen = head.length() + tail.length();
     int totalLen = estimatedImageLen + extraLen;
     
-    client_upload.printf("POST %s HTTP/1.0\r\n", SCRIPT_URL_SEND_IMAGE);
+    String url = String(SCRIPT_URL_SEND_IMAGE) + "?telegram=" + (sendTelegram ? "1" : "0");
+
+    client_upload.printf("POST %s HTTP/1.0\r\n", url.c_str());
     client_upload.printf("Host: %s\r\n", SCRIPT_DOMAIN);
     client_upload.println("Connection: close");
     client_upload.printf("Content-Length: %d\r\n", totalLen);
@@ -267,10 +276,6 @@ String CaptureAndSend(bool sendTelegram) {
       response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
     }
     body = response.body;
-
-    if (sendTelegram && body.startsWith("http")) {
-      SendTelegram(body);
-    }
   }
   else {
     esp_camera_fb_return(fb);
@@ -280,50 +285,6 @@ String CaptureAndSend(bool sendTelegram) {
   ledOff();
 
   return body;
-}
-
-void SendTelegram(String photoUrl) {
-  Serial.println("Will send telegram");
-  // TODO: urlencode everything....
-  String caption = "[markdown](http://test.com)";
-  String url = "bot" + String(PARAMS.telegram_token) + "/sendPhoto?chat_id=" + PARAMS.telegram_chat_id + "&parse_mode=Markdown&caption=" + caption + "&photo=" + photoUrl;
-  Serial.println(url);
-  Serial.println(urlencode(url));
-  HttpResponse response = GetHttpGetResponseBody("api.telegram.org", 443, urlencode(url).c_str());
-
-}
-
-String urlencode(String str)
-{
-    String encodedString="";
-    char c;
-    char code0;
-    char code1;
-    char code2;
-    for (int i =0; i < str.length(); i++){
-      c=str.charAt(i);
-      if (c == ' '){
-        encodedString+= '+';
-      } else if (isalnum(c)){
-        encodedString+=c;
-      } else{
-        code1=(c & 0xf)+'0';
-        if ((c & 0xf) >9){
-            code1=(c & 0xf) - 10 + 'A';
-        }
-        c=(c>>4)&0xf;
-        code0=c+'0';
-        if (c > 9){
-            code0=c - 10 + 'A';
-        }
-        code2='\0';
-        encodedString+='%';
-        encodedString+=code0;
-        encodedString+=code1;
-      }
-      yield();
-    }
-    return encodedString;
 }
 
 String CaptureAndStore(int count) {
@@ -369,12 +330,11 @@ void refreshConfigFromWeb() {
       cycle_count = 1;
 
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality},${telegram_chat_id},${re}
-      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%12[^,],%49s", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
-      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality, &PARAMS.telegram_chat_id, &PARAMS.telegram_token);
-      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d. chat_id: %s. token: %s\r\n", 
+      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
+      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality);
+      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d.\r\n", 
         epoch, PARAMS.min_cycle_seconds, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
-        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality,
-        PARAMS.telegram_chat_id, PARAMS.telegram_token);
+        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality);
 
       // Set cam settings
       sensor_t * s = esp_camera_sensor_get();

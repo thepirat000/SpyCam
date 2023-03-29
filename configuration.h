@@ -25,7 +25,7 @@ const char* SCRIPT_URL_GET_CONFIG = "/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8
 const char* SCRIPT_DOMAIN = "script.google.com";
 
 // Minimum time in ms between motion detection processing (i.e. to avoid quota limits)
-#define MIN_DELAY_MOTION_MS     3000UL
+#define MIN_DELAY_MOTION_MS     5000UL
 
 struct Params
 {
@@ -38,9 +38,6 @@ struct Params
     int frame_size = 12;
     bool vflip = 0;
     int quality = 14;
-
-    char telegram_chat_id[13] = "";
-    char telegram_token[50] = "";
 } PARAMS;
 
 #endif // CONFIGURATION_H
