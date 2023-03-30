@@ -65,16 +65,16 @@ void loop() {
   // if WiFi is down, try reconnecting
   reconnectWifi();
 
-  if (PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
+  if (!offline && PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
     // Capture image and send to google drive
-    String response = CaptureAndSend(false);
+    String response = CaptureAndSend(false, false);
     Serial.println(response);    
   }
   if (PARAMS.period_sd_card > 0 && (cycle_count % PARAMS.period_sd_card == 0)) {
     // Capture and store to SD_CARD
     CaptureAndStore(1);
   }
-  if (PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) {
+  if (!offline && PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) {
     refreshConfigFromWeb();
   }
   if (PARAMS.period_restart > 0 && (cycle_count % PARAMS.period_restart == 0)) {
@@ -85,7 +85,6 @@ void loop() {
   cycle_count++;
 
   const unsigned long end_time = millis();
-
   const unsigned long elapsed_ms = end_time - start_time;
   const unsigned long sleep_ms = max(0UL, (PARAMS.min_cycle_seconds * 1000) - elapsed_ms);
   const unsigned long sleep_end_time = end_time + sleep_ms;
@@ -93,20 +92,29 @@ void loop() {
   Serial.printf("Elapsed %d seconds. Min %d seconds. Will delay %d secs if no motion detected...\r\n", (elapsed_ms / 1000), PARAMS.min_cycle_seconds, (sleep_ms / 1000));
 
   while(millis() < sleep_end_time) {
-    int motion_detected = digitalRead(PIR_SENSOR_NUM);
-    if (motion_detected == HIGH) {
-      Serial.println("Motion detected !");
-      const unsigned long motion_start_time = millis();
-      // Upload image and notify
-      String response = CaptureAndSend(true);
-      Serial.println(response);
-      const unsigned long motion_elapsed_ms = millis() - motion_start_time;
-      const unsigned long A = sleep_end_time - millis(); // ms for the next main cycle
-      const unsigned long B = MIN_DELAY_MOTION_MS > motion_elapsed_ms ? MIN_DELAY_MOTION_MS - motion_elapsed_ms : 0; // ms for the next motion cycle
-      const unsigned long motion_sleep_ms = min(A, B);
-      Serial.println("A: " + String(A) + " B: " + String(B) + " Motion elapsed " + String(motion_elapsed_ms) + " ms. Will delay on motion for " + String(motion_sleep_ms) + " ms");
-      delay(motion_sleep_ms);
+    if (PARAMS.motion) {
+      // Motion processing
+      motionDetection(sleep_end_time);
+    } else {
+      // Motion processing disabled
+      delay(50);
     }
+  }
+}
+
+void motionDetection(unsigned long sleep_end_time) {
+  int motion_detected = digitalRead(PIR_SENSOR_NUM);
+  if (motion_detected == HIGH) {
+    Serial.println("Motion detected !");
+    const unsigned long motion_start_time = millis();
+    // Upload image and notify
+    String response = CaptureAndSend(true, true);
+    Serial.println(response);
+    const unsigned long motion_elapsed_ms = millis() - motion_start_time;
+    const unsigned long motion_next_cycle_ms = (PARAMS.min_motion_cycle_seconds * 1000UL) > motion_elapsed_ms ? (PARAMS.min_motion_cycle_seconds * 1000) - motion_elapsed_ms : 0; 
+    const unsigned long motion_sleep_ms = min(sleep_end_time - millis()/*ms for the next main cycle*/, motion_next_cycle_ms);
+    Serial.println("Motion elapsed " + String(motion_elapsed_ms) + " ms. Will delay on motion for " + String(motion_sleep_ms) + " ms");
+    delay(motion_sleep_ms);
   }
 }
 
@@ -124,16 +132,6 @@ bool initCamera() {
   // Set the default frame_size config
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, cam_config.frame_size); 
-
-  /* // Workaround to discard first images and give AWB time to initialize
-  for(int i = 0; i < (cam_config.fb_count + 1); i++) {
-    camera_fb_t* fb;
-    fb = esp_camera_fb_get();  
-    delay(500);
-    esp_camera_fb_return(fb);
-    fb = NULL;
-  }
-  */
 
   return true;
 }
@@ -204,10 +202,13 @@ camera_fb_t* TakePhoto() {
     delay(100);
     flashOff();
   }
+  Serial.printf("Image size: %d bytes\r\n", fb->len);
+
   return fb;
 }
 
-String CaptureAndSend(bool sendTelegram) {
+// If forget==true, this functions will be much faster but will not wait for the server response
+String CaptureAndSend(bool sendTelegram, bool forget) {
   Serial.println("-- CAPTURE & SEND --");
   String body = "";
   camera_fb_t* fb = TakePhoto();  
@@ -221,15 +222,14 @@ String CaptureAndSend(bool sendTelegram) {
   ledOn();
 
   if (client_upload.connect(SCRIPT_DOMAIN, 443)) {
-    String head = "--ThePiratCam\r\nContent-Disposition: form-data; name=\"device\"\r\n\r\n" + DEVICE_NAME + "\r\n" \ 
-      "--ThePiratCam\r\nContent-Disposition: form-data; name=\"image\"\r\n\r\n" \
+    String head = "--ThePiratCam\r\nContent-Disposition: form-data; name=\"image\"\r\n\r\n" \
       "data:image/png;base64,";
     String tail = "\r\n--ThePiratCam--\r\n";
     int estimatedImageLen = base64_enc_len(fb->len);
     int extraLen = head.length() + tail.length();
     int totalLen = estimatedImageLen + extraLen;
     
-    String url = String(SCRIPT_URL_SEND_IMAGE) + "?telegram=" + (sendTelegram ? "1" : "0");
+    String url = String(SCRIPT_URL_SEND_IMAGE) + "?device=" + String(DEVICE_NAME) + "&telegram=" + (sendTelegram ? "1" : "0");
 
     client_upload.printf("POST %s HTTP/1.0\r\n", url.c_str());
     client_upload.printf("Host: %s\r\n", SCRIPT_DOMAIN);
@@ -271,11 +271,13 @@ String CaptureAndSend(bool sendTelegram) {
     esp_camera_fb_return(fb);
     
     // Wait for the response
-    HttpResponse response = GetClientResponseBody(15, client_upload, true);
-    if (response.location.length() > 4) {
-      response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
+    if (!forget) {
+      HttpResponse response = GetClientResponseBody(15, client_upload, true);
+      if (response.location.length() > 4) {
+        response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
+      }
+      body = response.body;
     }
-    body = response.body;
   }
   else {
     esp_camera_fb_return(fb);
@@ -330,11 +332,12 @@ void refreshConfigFromWeb() {
       cycle_count = 1;
 
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality},${telegram_chat_id},${re}
-      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
-      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality);
-      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d.\r\n", 
+      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
+      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality, &PARAMS.motion,	&PARAMS.min_motion_cycle_seconds);
+      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d. motion: %d. min motion: %d\r\n", 
         epoch, PARAMS.min_cycle_seconds, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
-        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality);
+        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality,
+        PARAMS.motion, PARAMS.min_motion_cycle_seconds);
 
       // Set cam settings
       sensor_t * s = esp_camera_sensor_get();

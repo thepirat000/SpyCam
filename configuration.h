@@ -24,9 +24,6 @@ const char* SCRIPT_URL_SEND_IMAGE = "/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8
 const char* SCRIPT_URL_GET_CONFIG = "/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8aDDsXQDcugzOxXAo_Um1btoAK8wBxRF6a3NhbYH/exec";
 const char* SCRIPT_DOMAIN = "script.google.com";
 
-// Minimum time in ms between motion detection processing (i.e. to avoid quota limits)
-#define MIN_DELAY_MOTION_MS     5000UL
-
 struct Params
 {
     int min_cycle_seconds = 60;
@@ -38,6 +35,10 @@ struct Params
     int frame_size = 12;
     bool vflip = 0;
     int quality = 14;
+    
+    // Minimum time in ms between motion detection processing (i.e. to avoid quota limits)
+    int min_motion_cycle_seconds = 5;
+    bool motion = true;
 } PARAMS;
 
 #endif // CONFIGURATION_H
