@@ -20,7 +20,6 @@ Notes:
 #include "sd_card.h"
 #include "http_client.h"
 
-
 unsigned long wifi_prev_ms = 0;
 unsigned long wifi_interval = 30000;
 bool offline = true;
@@ -107,8 +106,12 @@ void motionDetection(unsigned long sleep_end_time) {
   if (motion_detected == HIGH) {
     Serial.println("Motion detected !");
     const unsigned long motion_start_time = millis();
+
+    // Capture image and store to SD card 
+    CaptureAndStore(1);
     // Upload image and notify
     String response = CaptureAndSend(true, true);
+
     Serial.println(response);
     const unsigned long motion_elapsed_ms = millis() - motion_start_time;
     const unsigned long motion_next_cycle_ms = (PARAMS.min_motion_cycle_seconds * 1000UL) > motion_elapsed_ms ? (PARAMS.min_motion_cycle_seconds * 1000) - motion_elapsed_ms : 0; 
