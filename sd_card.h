@@ -148,7 +148,7 @@ void SD_deleteFile(fs::FS &fs, const char * path){
     }
 }
 
-bool SD_init(const char * dirname){
+bool SD_init(){
     if(!SD_MMC.begin("/sdcard", true, true)) {
         Serial.println("Card Mount Failed");
         return false;
@@ -174,10 +174,6 @@ bool SD_init(const char * dirname){
     uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
     uint64_t usedSize = SD_MMC.usedBytes() / (1024 * 1024);
     Serial.printf("SD_MMC Card Size: %lluMB. Used %lluMB\n", cardSize, usedSize);
-
-    if (dirname) {
-        SD_createDir(SD_MMC, dirname);
-    }
 
     return true;
 }

@@ -3,11 +3,13 @@
 
 #include "Arduino.h"
 
-const String DEVICE_NAME = "CAM1";
+String DEVICE_NAME = "CAM1";
+
+const char* CONFIG_FILE = "/config.txt";
 
 // STA config
-const char* SSID = "THEPIRAT"; // "ThePirat++";
-const String PASSWORD = "333" + String(175 * 23029);
+String SSID = "THEPIRAT"; // "ThePirat++";
+String PASSWORD = "333" + String(175 * 23029);
 IPAddress LOCAL_IP(192, 168, 15, 3);
 IPAddress GATEWAY(192, 168, 15, 1);
 IPAddress SUBNET(255, 255, 255, 0);
@@ -33,6 +35,8 @@ struct Params
     bool flash = false;
     int frame_size = 12;
     bool vflip = 0;
+    int brigthness = 0;
+    int saturation = 0;
     int quality = 14;
     
     // Minimum time in ms between motion detection processing (i.e. to avoid quota limits)

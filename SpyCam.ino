@@ -37,9 +37,12 @@ void setup() {
   pinMode(FLASH_GPIO_NUM, OUTPUT);
   pinMode(PIR_SENSOR_NUM, INPUT);
 
+  SD_init();
+  setConfigFromFile();
+
   flashOff();
   
-  SD_init(("/" + DEVICE_NAME).c_str());
+  SD_createDir(SD_MMC, ("/" + DEVICE_NAME).c_str());
 
   ledOn();
   
@@ -171,7 +174,7 @@ bool startWiFi() {
     Serial.println("STA Failed to configure");
   }
 
-  WiFi.begin(SSID, PASSWORD.c_str());
+  WiFi.begin(SSID.c_str(), PASSWORD.c_str());
 
   long int StartTime=millis();
   bool connected = true;
@@ -333,6 +336,30 @@ String CaptureAndStore(int count) {
   return "";
 }
 
+// Sets the configuration from the /config.txt file in the SD card, if present
+void setConfigFromFile() {
+  if (SD_MMC.exists(CONFIG_FILE)) {
+    Serial.println("Will set config from config.txt");
+    File file = SD_MMC.open(CONFIG_FILE);
+    if(file) {
+      if(file.available()) {
+        DEVICE_NAME = file.readStringUntil('\n');
+        DEVICE_NAME.trim();
+
+        SSID = file.readStringUntil('\n');
+        SSID.trim();
+
+        PASSWORD = file.readStringUntil('\n');
+        PASSWORD.trim();
+
+        Serial.println(DEVICE_NAME + ", " + SSID + ", " + PASSWORD);
+      }
+      file.close();
+    }
+  }
+}
+
+// Refreshes the clock, the cycles configuration and camera configuration from gs web
 void refreshConfigFromWeb() {
   Serial.println("-- CONFIG REFRESH --");
 
@@ -352,11 +379,11 @@ void refreshConfigFromWeb() {
       cycle_count = 1;
 
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality},${telegram_chat_id},${re}
-      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
-      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.quality, &PARAMS.motion,	&PARAMS.min_motion_cycle_seconds);
-      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, quality: %d. motion: %d. min motion: %d\r\n", 
+      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
+      &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.brigthness, &PARAMS.saturation, &PARAMS.quality, &PARAMS.motion,	&PARAMS.min_motion_cycle_seconds);
+      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, bright: %d. sat: %d. quality: %d. motion: %d. min motion: %d\r\n", 
         epoch, PARAMS.min_cycle_seconds, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
-        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.quality,
+        PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.brigthness, PARAMS.saturation, PARAMS.quality,
         PARAMS.motion, PARAMS.min_motion_cycle_seconds);
 
       // Set cam settings
@@ -364,6 +391,8 @@ void refreshConfigFromWeb() {
       s->set_framesize(s, (framesize_t)PARAMS.frame_size); 
       s->set_vflip(s, PARAMS.vflip); 
       s->set_quality(s, PARAMS.quality); 
+      s->set_brightness(s, PARAMS.brigthness);
+      s->set_saturation(s, PARAMS.saturation);
     } else {
       Serial.println("Params didn't change");
       sscanf(response.body.c_str(), "%U:%*s", &epoch);
