@@ -1,6 +1,5 @@
 /* ThePirat 2023 - Configuration constants and parameters handling */
-#ifndef CONFIGURATION_H
-#define CONFIGURATION_H
+#pragma once
 
 #include "Arduino.h"
 
@@ -40,5 +39,3 @@ struct Params
     int min_motion_cycle_seconds = 5;
     bool motion = true;
 } PARAMS;
-
-#endif // CONFIGURATION_H

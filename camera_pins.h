@@ -45,7 +45,7 @@ camera_config_t get_default_camera_config() {
   config.pixel_format = PIXFORMAT_JPEG;
   config.frame_size = FRAMESIZE_SXGA;
   config.jpeg_quality = 14; // 10 - 63
-  config.fb_count = 1;
+  config.fb_count = 2;
   return config;
 }
 

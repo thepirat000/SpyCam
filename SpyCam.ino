@@ -19,6 +19,7 @@ Notes:
 #include "camera_pins.h"
 #include "sd_card.h"
 #include "http_client.h"
+#include "app_httpd.h"
 
 unsigned long wifi_prev_ms = 0;
 unsigned long wifi_interval = 30000;
@@ -26,8 +27,6 @@ bool offline = true;
 ESP32Time rtc;
 String lastConfigString = "";
 
-void startCameraServer();
-void stopCameraServer();
 
 // **** SETUP **** //
 void setup() {
@@ -64,18 +63,30 @@ void loop() {
   // if WiFi is down, try reconnecting
   reconnectWifi();
 
-  if (!offline && PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
-    // Capture image and send to google drive
+  // Process serial input
+  serialInput();
+
+  if (isStreaming) {
+    Serial.println("Currently streaming, will not process cycle");
+  }
+
+  // Capture image and send to google drive
+  if (!isStreaming && !offline && PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
     String response = CaptureAndSend(false, false);
     Serial.println(response);    
   }
-  if (PARAMS.period_sd_card > 0 && (cycle_count % PARAMS.period_sd_card == 0)) {
-    // Capture and store to SD_CARD
+
+  // Capture and store to SD_CARD
+  if (!isStreaming && PARAMS.period_sd_card > 0 && (cycle_count % PARAMS.period_sd_card == 0)) {
     CaptureAndStore(1);
   }
+
+  // Reconfigure from web
   if (!offline && PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) {
     refreshConfigFromWeb();
   }
+
+  // Restart cycle
   if (PARAMS.period_restart > 0 && (cycle_count % PARAMS.period_restart == 0)) {
     Serial.println("Will restart...");
     ESP.restart();
@@ -91,6 +102,9 @@ void loop() {
   Serial.printf("Elapsed %d seconds. Min %d seconds. Will delay %d secs if no motion detected...\r\n", (elapsed_ms / 1000), PARAMS.min_cycle_seconds, (sleep_ms / 1000));
 
   while(millis() < sleep_end_time) {
+    // Process serial input
+    serialInput();
+
     if (PARAMS.motion) {
       // Motion processing
       motionDetection(sleep_end_time);
@@ -103,16 +117,19 @@ void loop() {
 
 void motionDetection(unsigned long sleep_end_time) {
   int motion_detected = digitalRead(PIR_SENSOR_NUM);
-  if (motion_detected == HIGH) {
+  if (!isStreaming && motion_detected == HIGH) {
     Serial.println("Motion detected !");
     const unsigned long motion_start_time = millis();
 
     // Capture image and store to SD card 
     CaptureAndStore(1);
-    // Upload image and notify
-    String response = CaptureAndSend(true, true);
 
-    Serial.println(response);
+    // Upload image and notify
+    if (!offline) {
+      String response = CaptureAndSend(true, true);
+      Serial.println(response);
+    }
+
     const unsigned long motion_elapsed_ms = millis() - motion_start_time;
     const unsigned long motion_next_cycle_ms = (PARAMS.min_motion_cycle_seconds * 1000UL) > motion_elapsed_ms ? (PARAMS.min_motion_cycle_seconds * 1000) - motion_elapsed_ms : 0; 
     const unsigned long motion_sleep_ms = min(sleep_end_time - millis()/*ms for the next main cycle*/, motion_next_cycle_ms);
@@ -142,7 +159,7 @@ bool initCamera() {
 bool startWiFi() {
   WiFi.mode(WIFI_AP_STA);
 
-  // The following two lines are needed just in case someone has put the device in LR mode previously
+  // The following two lines are needed just in case the device is in LR mode 
   esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
   esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
 
@@ -358,3 +375,14 @@ void refreshConfigFromWeb() {
   }
 }
 
+// Serial commands (for debug)
+void serialInput() {
+    if (Serial.available() > 0) {
+      String recv = Serial.readStringUntil('\r');
+      recv.trim();
+      if (recv.startsWith("stop")) {
+        Serial.println("Will stop");
+        PARAMS.motion = 0;
+      }
+  }
+}

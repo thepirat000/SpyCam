@@ -3,8 +3,7 @@
  * See LICENSE for more information
  * https://github.com/adamvr/arduino-base64 
  */
-#ifndef _BASE64_H
-#define _BASE64_H
+#pragma once
 
 /* b64_alphabet:
  *      Description: Base64 alphabet table, a mapping between integers
@@ -76,5 +75,3 @@ int base64_enc_len(int inputLen);
  *          2. input must be greater than or equal to zero
  */
 int base64_dec_len(char *input, int inputLen);
-
-#endif // _BASE64_H

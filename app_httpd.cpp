@@ -16,6 +16,7 @@
 #include "esp_camera.h"
 #include "camera_index.h"
 #include "Arduino.h"
+#include "app_httpd.h"
 
 typedef struct {
     httpd_req_t *req;
@@ -29,6 +30,8 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
+
+bool isStreaming = false;
 
 static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size_t len){
     jpg_chunking_t *j = (jpg_chunking_t *)arg;
@@ -103,6 +106,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
     while(true){
+        isStreaming = true;
         fb = esp_camera_fb_get();
         if (!fb) {
             Serial.println("Camera capture failed");
@@ -168,6 +172,7 @@ static esp_err_t stream_handler(httpd_req_t *req){
         );*/
     }
 
+    isStreaming = false;
     last_frame = 0;
     return res;
 }
@@ -323,6 +328,7 @@ static esp_err_t any_handler(httpd_req_t *req){
       return ESP_FAIL;
     }
 }
+
 void stopCameraServer() {
     if (camera_httpd != NULL) {
       Serial.println("Will stop web server");
