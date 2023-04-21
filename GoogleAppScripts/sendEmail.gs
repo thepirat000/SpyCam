@@ -8,5 +8,4 @@ function sendEmail(message) {
     htmlBody: message,
     inlineImages: { }
   });
-
 }
