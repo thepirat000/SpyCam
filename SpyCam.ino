@@ -7,6 +7,8 @@ Requisites:
 
 Notes:
 - Connect the PIR sensor to the GPIO 13
+- ESP32 CAM PINOUT: https://randomnerdtutorials.com/esp32-cam-ai-thinker-pinout/
+- ESP32 CAM PIN Description: https://github.com/raphaelbs/esp32-cam-ai-thinker/blob/master/docs/esp32cam-pin-notes.md
 */
 
 #include <WiFiClientSecure.h>
