@@ -3,15 +3,16 @@
 
 #include "Arduino.h"
 
-String DEVICE_NAME = "CAM1";
 
+// Config file format: Device Name \n WiFi name \n WiFi password \n IP Address \n Gateway \n Subnet \n PrimatyDNS \n SecondaryDNS
 const char* CONFIG_FILE = "/config.txt";
 
-// STA config
-String SSID = "THEPIRAT"; // "ThePirat++";
+// Config. These configs can be overriden in the config.txt file
+String DEVICE_NAME = "CAM1";
+String SSID = "THEPIRAT_2.4G"; // "ThePirat++";
 String PASSWORD = "333" + String(175 * 23029);
-IPAddress LOCAL_IP(192, 168, 15, 3);
-IPAddress GATEWAY(192, 168, 15, 1);
+IPAddress LOCAL_IP(192, 168, 1, 103);
+IPAddress GATEWAY(192, 168, 1, 1);
 IPAddress SUBNET(255, 255, 255, 0);
 IPAddress PRIMARYDNS(8, 8, 8, 8); // WiFiClientSecure.connect will fail if DNS is not set
 IPAddress SECONDARYDNS(8, 8, 4, 4);

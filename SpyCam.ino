@@ -194,10 +194,12 @@ bool startWiFi() {
 
   Serial.println("");
   Serial.println(connected ? "WiFi connected" : "Offline mode");
-  
+  Serial.printf("IP: %s\r\nGateway: %s\r\nSubnet: %s\r\nPrimary DNS: %s\r\nSecondary DNS: %s\r\n", LOCAL_IP.toString().c_str(),
+        GATEWAY.toString().c_str(), SUBNET.toString().c_str(), PRIMARYDNS.toString().c_str(), SECONDARYDNS.toString().c_str());
+        
   if (connected) {
       // Start the camera web server
-      Serial.printf("Connected to %s. Signal: %d dBm\r\n", SSID, WiFi.RSSI());
+      Serial.printf("Connected to %s. Signal: %d dBm.\r\n", SSID.c_str(), WiFi.RSSI());
       startCameraServer();
       Serial.println("Web Server Ready! (STA) Use 'http://" + WiFi.localIP().toString() + "' to connect");
       Serial.println("Web Server Ready! (AP) Use 'http://" + WiFi.softAPIP().toString() + "' to connect");
@@ -340,6 +342,7 @@ String CaptureAndStore(int count) {
 
 // Sets the configuration from the /config.txt file in the SD card, if present
 void setConfigFromFile() {
+  String tmp;
   if (SD_MMC.exists(CONFIG_FILE)) {
     Serial.println("Will set config from config.txt");
     File file = SD_MMC.open(CONFIG_FILE);
@@ -354,7 +357,13 @@ void setConfigFromFile() {
         PASSWORD = file.readStringUntil('\n');
         PASSWORD.trim();
 
-        Serial.println(DEVICE_NAME + ", " + SSID + ", " + PASSWORD);
+        Serial.println("Read from config file: " + DEVICE_NAME + ", " + SSID + ", " + PASSWORD);
+        
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { LOCAL_IP.fromString(tmp); } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { GATEWAY.fromString(tmp); } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { SUBNET.fromString(tmp); } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { PRIMARYDNS.fromString(tmp); } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { SECONDARYDNS.fromString(tmp); } }
       }
       file.close();
     }
