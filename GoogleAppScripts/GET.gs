@@ -1,12 +1,20 @@
+// Device configuration GET endpoint
 function doGet(e) {
   const device = e?.parameter?.device ?? "unknown";
+  console.log(device + " device");
+
   const date = new Date();
+
   // fix for the timezone GMT-6
   let unixDate = Math.floor(date.getTime()/1000);
   unixDate += 3600 * -6;
 
-  let count = parseInt(props.getProperty('execution-count') ?? 0) + 1;
-  props.setProperty('execution-count', count);
+  // Update last-seen variable
+  setConfig(device, 'last-seen', Utilities.formatDate(date, "GMT-6", "yyyy-MM-dd HH:mm:ss"))
+
+  // Update get count variable
+  let count = parseInt(getConfig(device, 'get-count') ?? 0) + 1;
+  setConfig(device, 'get-count', count);
 
   /******** <CONFIG> ********/
 
@@ -25,7 +33,7 @@ function doGet(e) {
   const minMotionSeconds = 5;
   
   // Camera config
-  const flash = 0; //date.getHours() > 6 && date.getHours() < 19 ? 0 : 1;
+  const flash = date.getHours() > 6 && date.getHours() < 22 ? 0 : 1;
   const v_flip = 0;
   const brightness = 0; // -2 to 2
   const saturation = 0; // -2 to 2
@@ -36,6 +44,9 @@ function doGet(e) {
 
   const configMessage = `${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${period_restart},${flash},${frame_size},${v_flip},${brightness},${saturation},${quality},${motionDetectionEnabled},${minMotionSeconds}`;
   console.log(configMessage);
+
+  // Update last-config variable
+  setConfig(device, 'last-config', configMessage);
 
   return ContentService.createTextOutput(configMessage);
 }

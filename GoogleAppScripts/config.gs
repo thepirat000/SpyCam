@@ -9,3 +9,8 @@ function getConfig(device, setting, defaultValue) {
   const key = device + ":" + setting;
   return props.getProperty(key) ?? defaultValue;
 }
+
+
+function __ShowConfigValues() {
+  console.log(props.getProperties());
+}

@@ -1,8 +1,10 @@
-const telegram_chat_id = 999999999;
-const telegram_token = "XXXXXXXXX";
+const telegram_chat_id = 0;
+const telegram_token = "1234:xxxxx";
 
-function notifyImageTelegram(device, filename, imageUrl) {
-  const caption = `${device}: [${filename}](${imageUrl})`; // "message to send supporting markdown [ok](http://test.com)";
+function notifyImageTelegram(device, filename, imageUrl, deviceStatus) {
+  // message to send, supporting markdown
+  const caption = `${device}: [${filename}](${imageUrl})\n\n${deviceStatus}`; 
+
   const telegramSendUrl = `https://api.telegram.org/bot${telegram_token}/sendPhoto?chat_id=${telegram_chat_id}&parse_mode=Markdown&caption=${encodeURIComponent(caption)}&photo=${encodeURIComponent(imageUrl)}`;
   
   const response = UrlFetchApp.fetch(telegramSendUrl);
@@ -16,8 +18,7 @@ function sendMessageTelegram(message) {
   console.log("Telegram response: " + response.getResponseCode());
 }
 
-
 function __test() {
-  //notifyImageTelegram("Test", "Capture 123456.jpg", "https://drive.google.com/uc?export=view&id=1EECXpCFvajg6tc7K5TmMine0tdm8bq4l");
-  sendMessageTelegram("FEDE", "Test [LINK](http://fede.com) test");
+  notifyImageTelegram("CAM_TEST_1", "filename.jpg", "https://drive.google.com/uc?export=view&id=1XMkHUJ2eqzMjCwD40evtmLk8M8Zsglju", "hola 123");
+  //sendMessageTelegram("FEDE Test [LINK](http://fede.com)\ntest");
 }
