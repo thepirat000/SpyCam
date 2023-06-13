@@ -28,7 +28,12 @@ unsigned long wifi_interval = 30000;
 bool offline = true;
 ESP32Time rtc;
 String lastConfigString = "";
+unsigned int cycle_count = 1;
 
+// Pics counters since restart
+unsigned long pics_count_cloud_gs = 0;    //Cloud gs pics count
+unsigned long pics_count_sd = 0;          //SD card pics count
+unsigned long pics_count_motion = 0;      //Motion pics count 
 
 // **** SETUP **** //
 void setup() {
@@ -58,8 +63,6 @@ void setup() {
 }
 
 // **** LOOP **** //
-unsigned int cycle_count = 1;
-
 void loop() {
   const unsigned long start_time = millis();
 
@@ -235,7 +238,7 @@ camera_fb_t* TakePhoto() {
 }
 
 // If forget==true, this functions will be much faster but will not wait for the server response
-String CaptureAndSend(bool sendTelegram, bool forget) {
+String CaptureAndSend(bool isMotionDetected, bool forget) {
   Serial.println("-- CAPTURE & SEND --");
   String body = "";
   camera_fb_t* fb = TakePhoto();  
@@ -256,7 +259,8 @@ String CaptureAndSend(bool sendTelegram, bool forget) {
     int extraLen = head.length() + tail.length();
     int totalLen = estimatedImageLen + extraLen;
     
-    String url = String(SCRIPT_URL_SEND_IMAGE) + "?device=" + String(DEVICE_NAME) + "&telegram=" + (sendTelegram ? "1" : "0");
+    String url = String(SCRIPT_URL_SEND_IMAGE) + "?device=" + String(DEVICE_NAME) + "&telegram=" + (isMotionDetected ? "1" : "0");
+    url = url + MakeExtraQueryParams();
 
     client_upload.printf("POST %s HTTP/1.0\r\n", url.c_str());
     client_upload.printf("Host: %s\r\n", SCRIPT_DOMAIN);
@@ -305,6 +309,12 @@ String CaptureAndSend(bool sendTelegram, bool forget) {
       }
       body = response.body;
     }
+
+    if (isMotionDetected) {
+      pics_count_motion++;
+    } else {
+      pics_count_cloud_gs++;
+    }
   }
   else {
     esp_camera_fb_return(fb);
@@ -330,6 +340,7 @@ String CaptureAndStore(int count) {
     String filename = folder + "/" + rtc.getTime("Capture %Y-%m-%d %H.%M.%S.jpg");
     if (SD_writeFile(SD_MMC, filename.c_str(), fb->buf, fb->len)) {
       Serial.printf("File %s saved\r\n", filename.c_str());
+      pics_count_sd++;
     } else {
       Serial.println("Saving failed");
     }
@@ -338,6 +349,22 @@ String CaptureAndStore(int count) {
   }
 
   return "";
+}
+
+String MakeExtraQueryParams() {
+  String queryParams = "&su={seconds_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}";
+
+  queryParams.replace("{seconds_up}", String((long)esp_timer_get_time() / 1000000));
+  queryParams.replace("{wifi_signal}", String(WiFi.RSSI()));
+  queryParams.replace("{counter_cycles}", String(cycle_count));
+  queryParams.replace("{counter_pics_motion}", String(pics_count_motion));
+  queryParams.replace("{counter_pics_gs}", String(pics_count_cloud_gs));
+  queryParams.replace("{counter_pics_sd}", String(pics_count_sd));
+  queryParams.replace("{bytes_free}", String(ESP.getFreeHeap()));
+  
+  Serial.println("Extra query params: " + queryParams);
+
+  return queryParams;
 }
 
 // Sets the configuration from the /config.txt file in the SD card, if present
