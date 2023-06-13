@@ -239,7 +239,11 @@ camera_fb_t* TakePhoto() {
 
 // If forget==true, this functions will be much faster but will not wait for the server response
 String CaptureAndSend(bool isMotionDetected, bool forget) {
-  Serial.println("-- CAPTURE & SEND --");
+  if (isMotionDetected) {
+    Serial.println("-- MOTION CAPTURE, STORE IN CLOUD & SEND TO TELEGRAM --");  
+  } else {
+    Serial.println("-- CAPTURE & STORE IN CLOUD --");  
+  }
   String body = "";
   camera_fb_t* fb = TakePhoto();  
   if(!fb) {
@@ -327,7 +331,7 @@ String CaptureAndSend(bool isMotionDetected, bool forget) {
 }
 
 String CaptureAndStore(int count) {
-  Serial.println("-- CAPTURE & STORE --");
+  Serial.println("-- CAPTURE & STORE IN SD CARD --");
 
   for(int i = 0; i < count; i++) {
     camera_fb_t* fb = TakePhoto();  
@@ -352,16 +356,17 @@ String CaptureAndStore(int count) {
 }
 
 String MakeExtraQueryParams() {
-  String queryParams = "&su={seconds_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}";
+  String queryParams = "&su={seconds_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}";
 
-  queryParams.replace("{seconds_up}", String((long)esp_timer_get_time() / 1000000));
+  queryParams.replace("{seconds_up}", String((unsigned long)(esp_timer_get_time() / 1000000 / 60)));
   queryParams.replace("{wifi_signal}", String(WiFi.RSSI()));
   queryParams.replace("{counter_cycles}", String(cycle_count));
   queryParams.replace("{counter_pics_motion}", String(pics_count_motion));
   queryParams.replace("{counter_pics_gs}", String(pics_count_cloud_gs));
   queryParams.replace("{counter_pics_sd}", String(pics_count_sd));
   queryParams.replace("{bytes_free}", String(ESP.getFreeHeap()));
-  
+  queryParams.replace("{temperature_celsius}", String((long)temperatureRead()));
+
   Serial.println("Extra query params: " + queryParams);
 
   return queryParams;
