@@ -6,7 +6,7 @@ Requisites:
 - Google App Scripts 
 
 Notes:
-- Connect the PIR sensor to the GPIO 13
+- Connect the PIR sensor to the GPIO 12
 - ESP32 CAM PINOUT: https://randomnerdtutorials.com/esp32-cam-ai-thinker-pinout/
 - ESP32 CAM PIN Description: https://github.com/raphaelbs/esp32-cam-ai-thinker/blob/master/docs/esp32cam-pin-notes.md
 */
@@ -42,9 +42,11 @@ void setup() {
 
   pinMode(LED_BUILTIN_GPIO_NUM, OUTPUT);
   pinMode(FLASH_GPIO_NUM, OUTPUT);
+
   pinMode(PIR_SENSOR_NUM, INPUT);
 
   SD_init();
+
   setConfigFromFile();
 
   flashOff();
