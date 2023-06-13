@@ -148,6 +148,14 @@ void SD_deleteFile(fs::FS &fs, const char * path){
     }
 }
 
+uint64_t GetCardSizeMB() {
+    return SD_MMC.cardSize() / (1024 * 1024);;
+}
+
+uint64_t GetUsedSizeMB() {
+    return SD_MMC.usedBytes() / (1024 * 1024);
+}
+
 bool SD_init(){
     if(!SD_MMC.begin("/sdcard", true, true)) {
         Serial.println("Card Mount Failed");
@@ -171,8 +179,8 @@ bool SD_init(){
         Serial.println("UNKNOWN");
     }
 
-    uint64_t cardSize = SD_MMC.cardSize() / (1024 * 1024);
-    uint64_t usedSize = SD_MMC.usedBytes() / (1024 * 1024);
+    uint64_t cardSize = GetCardSizeMB();
+    uint64_t usedSize = GetUsedSizeMB();
     Serial.printf("SD_MMC Card Size: %lluMB. Used %lluMB\n", cardSize, usedSize);
 
     return true;

@@ -11,6 +11,7 @@
     - cg: counter_pics_gs
     - cs: counter_pics_sd
     - bf: heap free bytes
+    - us: used megabytes in the SD card
 */
 function doPost(e) {
   const postData = e?.postData?.type?.indexOf("application/json") >= 0 ? JSON.parse(e.postData.contents) : null;
@@ -47,7 +48,6 @@ function doPost(e) {
   return ContentService.createTextOutput(fileDirectLink);
 }
 
-
 function getDeviceStatus(device, e) {
   const parameter = e?.parameter;
   const seconds_up = parameter?.su;
@@ -58,6 +58,7 @@ function getDeviceStatus(device, e) {
   const counter_pics_sd = parameter?.cs;
   const heap_free_bytes = parameter?.bf;
   const temp_celsius = parameter?.tc ? parseInt(parameter?.tc) : 0;
+  const sd_card_used_mb = parameter?.us ? parseInt(parameter?.us) : 0;
 
   const minutes_up = seconds_up ? parseInt(seconds_up) : 0;
   const signal_info_text = wifi_signal_dbm <= -80 ? "Bad" : wifi_signal_dbm <= -75 ? "Weak" : wifi_signal_dbm <= -70 ? "Normal" : wifi_signal_dbm <= -65 ? "Good" : wifi_signal_dbm <= -60 ? "Very Good" : "Excellent";
@@ -65,10 +66,7 @@ function getDeviceStatus(device, e) {
   const lastConfig = getConfig(device, 'last-config', 'N/A').split(':')[1];
 
   let info = "Up " + minutes_up + " mins. WiFi " + wifi_signal_dbm + " dBm (" + signal_info_text + ").\nCycles: " + cycle_counter + 
-    ". Temp: " + temp_celsius + "ºC. " + heap_free_bytes + " bytes free.\nMO: " + counter_pics_motion + ", GS: " + counter_pics_gs + ", SD: " + counter_pics_sd + "\nConfig: " + lastConfig;
+    ". Temp: " + temp_celsius + "ºC. " + heap_free_bytes + " bytes free.\nMO: " + counter_pics_motion + ", GS: " + counter_pics_gs + ", SD: " + counter_pics_sd + ", Used: " + sd_card_used_mb + "MB\nConfig: " + lastConfig;
   
   return info;
 }
-
-
-

@@ -356,7 +356,7 @@ String CaptureAndStore(int count) {
 }
 
 String MakeExtraQueryParams() {
-  String queryParams = "&su={seconds_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}";
+  String queryParams = "&su={seconds_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}&us={used_size_mb}";
 
   queryParams.replace("{seconds_up}", String((unsigned long)(esp_timer_get_time() / 1000000 / 60)));
   queryParams.replace("{wifi_signal}", String(WiFi.RSSI()));
@@ -366,6 +366,7 @@ String MakeExtraQueryParams() {
   queryParams.replace("{counter_pics_sd}", String(pics_count_sd));
   queryParams.replace("{bytes_free}", String(ESP.getFreeHeap()));
   queryParams.replace("{temperature_celsius}", String((long)temperatureRead()));
+  queryParams.replace("{used_size_mb}", String((unsigned long)GetUsedSizeMB()));
 
   Serial.println("Extra query params: " + queryParams);
 
@@ -407,7 +408,8 @@ void refreshConfigFromWeb() {
   Serial.println("-- CONFIG REFRESH --");
 
   // Call getConfig google script and store in PARAMS
-  HttpResponse response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, SCRIPT_URL_GET_CONFIG);
+  String url = String(SCRIPT_URL_GET_CONFIG) + "?device=" + String(DEVICE_NAME);
+  HttpResponse response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, url.c_str());
   if (response.location.length() > 4) {
       response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
   }
