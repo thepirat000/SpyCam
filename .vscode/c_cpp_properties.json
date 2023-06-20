@@ -97,6 +97,8 @@
                 "C:\\Users\\Federico Colombo\\Documents\\Arduino\\libraries\\ESP32Time",
                 "C:\\Users\\Federico Colombo\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\FS\\src",
                 "C:\\Users\\Federico Colombo\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.6\\libraries\\SD_MMC\\src",
+                "C:\\Users\\Federico Colombo\\Documents\\Arduino\\libraries\\UniversalTelegramBot\\src",
+                "C:\\Users\\Federico Colombo\\Documents\\Arduino\\libraries\\ArduinoJson\\src",
                 "c:\\users\\federico colombo\\appdata\\local\\arduino15\\packages\\esp32\\tools\\xtensa-esp32-elf-gcc\\1.22.0-97-gc752ad5-5.2.0\\xtensa-esp32-elf\\include\\c++\\5.2.0",
                 "c:\\users\\federico colombo\\appdata\\local\\arduino15\\packages\\esp32\\tools\\xtensa-esp32-elf-gcc\\1.22.0-97-gc752ad5-5.2.0\\xtensa-esp32-elf\\include\\c++\\5.2.0\\xtensa-esp32-elf",
                 "c:\\users\\federico colombo\\appdata\\local\\arduino15\\packages\\esp32\\tools\\xtensa-esp32-elf-gcc\\1.22.0-97-gc752ad5-5.2.0\\xtensa-esp32-elf\\include\\c++\\5.2.0\\backward",

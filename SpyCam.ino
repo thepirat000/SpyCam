@@ -9,6 +9,7 @@ Notes:
 - Connect the PIR sensor to the GPIO 12
 - ESP32 CAM PINOUT: https://randomnerdtutorials.com/esp32-cam-ai-thinker-pinout/
 - ESP32 CAM PIN Description: https://github.com/raphaelbs/esp32-cam-ai-thinker/blob/master/docs/esp32cam-pin-notes.md
+- Needs manual installation of latest Universal-Arduino-Telegram-Bot Arduino library (https://github.com/witnessmenow/Universal-Arduino-Telegram-Bot)
 */
 
 #include <WiFiClientSecure.h>
@@ -22,6 +23,12 @@ Notes:
 #include "sd_card.h"
 #include "http_client.h"
 #include "app_httpd.h"
+#include "telegram.h"
+
+#ifdef DISABLE_BROWNOUT
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
+#endif
 
 unsigned long wifi_prev_ms = 0;
 unsigned long wifi_interval = 30000;
@@ -30,19 +37,32 @@ ESP32Time rtc;
 String lastConfigString = "";
 unsigned int cycle_count = 1;
 
+void HandleTelegramMessage(const String& text, const String& chat_id, const String& from);
+Telegram telegramBot(TLGRM_BOT_TOKEN, TLGRM_CHAT_ID, HandleTelegramMessage);
+
 // Pics counters since restart
 unsigned long pics_count_cloud_gs = 0;    //Cloud gs pics count
 unsigned long pics_count_sd = 0;          //SD card pics count
 unsigned long pics_count_motion = 0;      //Motion pics count 
+
+// Config query paramaters for gs script POST call
+const String EXTRA_PARAMS_FORMAT = "&su={mins_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}&us={used_size_mb}";
+// Status values format
+const String STATUS_PARAMS_FORMAT = "Started {mins_up} mins ago - WiFi Signal: {wifi_signal} dBm\r\nCounter cycles: {counter_cycles} - MO: {counter_pics_motion} GS: {counter_pics_gs} SD: {counter_pics_sd}\r\nBytes free: {bytes_free} - Temp: {temperature_celsius}ºC - Used: {used_size_mb}MB";
+
+bool reconfigOnNextCycle = false;
 
 // **** SETUP **** //
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
+  #ifdef DISABLE_BROWNOUT
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
+  #endif
+
   pinMode(LED_BUILTIN_GPIO_NUM, OUTPUT);
   pinMode(FLASH_GPIO_NUM, OUTPUT);
-
   pinMode(PIR_SENSOR_NUM, INPUT);
 
   SD_init();
@@ -80,6 +100,16 @@ void loop() {
     Serial.println("Currently streaming, will not process cycle");
   }
 
+  if (cycle_count == 1) {
+    // Send the start message
+    telegramBot.SendMessage(DEVICE_NAME + " " + GetStatusMessage());
+  }
+
+  // Check for telegram new message commands
+  if (!isStreaming && !offline && PARAMS.period_telegram > 0 && (cycle_count % PARAMS.period_telegram == 0)) {
+    telegramBot.ProcessInputMessages();
+  }
+
   // Capture image and send to google drive
   if (!isStreaming && !offline && PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
     String response = CaptureAndSend(false, false);
@@ -92,9 +122,14 @@ void loop() {
   }
 
   // Reconfigure from web
-  if (!offline && PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) {
-    refreshConfigFromWeb();
+  if (!offline && ((PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) || reconfigOnNextCycle)) {
+    String newConfig = refreshConfigFromWeb();
+    if (reconfigOnNextCycle) {
+      telegramBot.SendMessage("Reconfigured with: " + newConfig);
+      reconfigOnNextCycle = false;
+    }
   }
+  
 
   // Restart cycle
   if (PARAMS.period_restart > 0 && (cycle_count % PARAMS.period_restart == 0)) {
@@ -106,10 +141,14 @@ void loop() {
 
   const unsigned long end_time = millis();
   const unsigned long elapsed_ms = end_time - start_time;
-  const unsigned long sleep_ms = max(0UL, (PARAMS.min_cycle_seconds * 1000) - elapsed_ms);
+  const unsigned long sleep_ms = (elapsed_ms >= (PARAMS.min_cycle_seconds * 1000)) ? 0UL : (PARAMS.min_cycle_seconds * 1000) - elapsed_ms;
   const unsigned long sleep_end_time = end_time + sleep_ms;
 
-  Serial.printf("Elapsed %d seconds. Min %d seconds. Will delay %d secs if no motion detected...\r\n", (elapsed_ms / 1000), PARAMS.min_cycle_seconds, (sleep_ms / 1000));
+  Serial.printf("Elapsed %lu seconds. Min %d seconds. Will delay %lu ms...\r\n", elapsed_ms / 1000UL, PARAMS.min_cycle_seconds, sleep_ms);
+
+  if (PARAMS.motion) {
+    Serial.println("Motion detection enabled");
+  }
 
   while(millis() < sleep_end_time) {
     // Process serial input
@@ -167,14 +206,17 @@ bool initCamera() {
 }
 
 bool startWiFi() {
-  WiFi.mode(WIFI_AP_STA);
-
   // The following two lines are needed just in case the device is in LR mode 
   esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
   esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
 
+#ifdef DISABLE_AP
+  WiFi.mode(WIFI_STA);
+#else
+  WiFi.mode(WIFI_AP_STA);
   // Setup AP
   WiFi.softAP(SOFT_AP_SSID, SOFT_AP_PASSWORD); 
+#endif
   
   // Setup STA
   if (!WiFi.config(LOCAL_IP, GATEWAY, SUBNET, PRIMARYDNS, SECONDARYDNS)) {
@@ -207,7 +249,9 @@ bool startWiFi() {
       Serial.printf("Connected to %s. Signal: %d dBm.\r\n", SSID.c_str(), WiFi.RSSI());
       startCameraServer();
       Serial.println("Web Server Ready! (STA) Use 'http://" + WiFi.localIP().toString() + "' to connect");
+#ifndef DISABLE_AP      
       Serial.println("Web Server Ready! (AP) Use 'http://" + WiFi.softAPIP().toString() + "' to connect");
+#endif      
   }
 
   return connected;  
@@ -239,7 +283,7 @@ camera_fb_t* TakePhoto() {
   return fb;
 }
 
-// If forget==true, this functions will be much faster but will not wait for the server response
+// If forget==true, this function will be much faster but will not wait for the server response
 String CaptureAndSend(bool isMotionDetected, bool forget) {
   if (isMotionDetected) {
     Serial.println("-- MOTION CAPTURE, STORE IN CLOUD & SEND TO TELEGRAM --");  
@@ -247,7 +291,7 @@ String CaptureAndSend(bool isMotionDetected, bool forget) {
     Serial.println("-- CAPTURE & STORE IN CLOUD --");  
   }
   String body = "";
-  camera_fb_t* fb = TakePhoto();  
+  camera_fb_t* fb = TakePhoto();
   if(!fb) {
     Serial.println("Camera capture failed");
     return "Camera capture failed";
@@ -266,7 +310,7 @@ String CaptureAndSend(bool isMotionDetected, bool forget) {
     int totalLen = estimatedImageLen + extraLen;
     
     String url = String(SCRIPT_URL_SEND_IMAGE) + "?device=" + String(DEVICE_NAME) + "&telegram=" + (isMotionDetected ? "1" : "0");
-    url = url + MakeExtraQueryParams();
+    url = url + GetStatusQueryParams();
 
     client_upload.printf("POST %s HTTP/1.0\r\n", url.c_str());
     client_upload.printf("Host: %s\r\n", SCRIPT_DOMAIN);
@@ -357,22 +401,28 @@ String CaptureAndStore(int count) {
   return "";
 }
 
-String MakeExtraQueryParams() {
-  String queryParams = "&su={seconds_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}&us={used_size_mb}";
+String GetStatusQueryParams() {
+  return FormatConfigValues(EXTRA_PARAMS_FORMAT);
+}
 
-  queryParams.replace("{seconds_up}", String((unsigned long)(esp_timer_get_time() / 1000000 / 60)));
-  queryParams.replace("{wifi_signal}", String(WiFi.RSSI()));
-  queryParams.replace("{counter_cycles}", String(cycle_count));
-  queryParams.replace("{counter_pics_motion}", String(pics_count_motion));
-  queryParams.replace("{counter_pics_gs}", String(pics_count_cloud_gs));
-  queryParams.replace("{counter_pics_sd}", String(pics_count_sd));
-  queryParams.replace("{bytes_free}", String(ESP.getFreeHeap()));
-  queryParams.replace("{temperature_celsius}", String((long)temperatureRead()));
-  queryParams.replace("{used_size_mb}", String((unsigned long)GetUsedSizeMB()));
+String GetStatusMessage() {
+  return FormatConfigValues(STATUS_PARAMS_FORMAT);
+}
 
-  Serial.println("Extra query params: " + queryParams);
+String FormatConfigValues(String format) {
+  format.replace("{mins_up}", String((unsigned long)(esp_timer_get_time() / 1000000 / 60)));
+  format.replace("{wifi_signal}", String(WiFi.RSSI()));
+  format.replace("{counter_cycles}", String(cycle_count));
+  format.replace("{counter_pics_motion}", String(pics_count_motion));
+  format.replace("{counter_pics_gs}", String(pics_count_cloud_gs));
+  format.replace("{counter_pics_sd}", String(pics_count_sd));
+  format.replace("{bytes_free}", String(ESP.getFreeHeap()));
+  format.replace("{temperature_celsius}", String((long)temperatureRead()));
+  format.replace("{used_size_mb}", String((unsigned long)GetUsedSizeMB()));
 
-  return queryParams;
+  Serial.println("Formatted config: " + format);
+
+  return format;
 }
 
 // Sets the configuration from the /config.txt file in the SD card, if present
@@ -406,7 +456,7 @@ void setConfigFromFile() {
 }
 
 // Refreshes the clock, the cycles configuration and camera configuration from gs web
-void refreshConfigFromWeb() {
+String refreshConfigFromWeb() {
   Serial.println("-- CONFIG REFRESH --");
 
   // Call getConfig google script and store in PARAMS
@@ -416,8 +466,10 @@ void refreshConfigFromWeb() {
       response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
   }
 
-  if (response.status == 200 && response.body.indexOf(":") > 0) {
-    String configString = response.body.substring(response.body.indexOf(":") + 1, response.body.length());
+  String responseBody = response.body;
+
+  if (response.status == 200 && responseBody.indexOf(":") > 0) {
+    String configString = responseBody.substring(responseBody.indexOf(":") + 1, responseBody.length());
     unsigned long epoch;
 
     if (lastConfigString != configString) {
@@ -426,10 +478,10 @@ void refreshConfigFromWeb() {
       cycle_count = 1;
 
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality},${telegram_chat_id},${re}
-      sscanf(response.body.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
+      sscanf(responseBody.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_telegram, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
       &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.brigthness, &PARAMS.saturation, &PARAMS.quality, &PARAMS.motion,	&PARAMS.min_motion_cycle_seconds);
-      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, bright: %d. sat: %d. quality: %d. motion: %d. min motion: %d\r\n", 
-        epoch, PARAMS.min_cycle_seconds, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
+      Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_tlgm: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, bright: %d. sat: %d. quality: %d. motion: %d. min motion: %d\r\n", 
+        epoch, PARAMS.min_cycle_seconds, PARAMS.period_telegram, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
         PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.brigthness, PARAMS.saturation, PARAMS.quality,
         PARAMS.motion, PARAMS.min_motion_cycle_seconds);
 
@@ -442,13 +494,16 @@ void refreshConfigFromWeb() {
       s->set_saturation(s, PARAMS.saturation);
     } else {
       Serial.println("Params didn't change");
-      sscanf(response.body.c_str(), "%U:%*s", &epoch);
+      sscanf(responseBody.c_str(), "%U:%*s", &epoch);
     }
 
     // Set clock time
     rtc.setTime(epoch);
     Serial.println(rtc.getTime("Set clock to: %A, %B %d %Y %H:%M:%S"));
+
   }
+  
+  return responseBody;
 }
 
 // Serial commands (for debug)
@@ -462,3 +517,38 @@ void serialInput() {
       }
   }
 }
+
+// Telegram
+void HandleTelegramMessage(const String& text, const String& chat_id, const String& from)
+{
+  if (text == "/start")
+    {
+      const String commands = F("["
+                        "{\"command\":\"pic\",\"description\":\"Take a photo and send immediately\"},"
+                        "{\"command\":\"status\", \"description\":\"Get the current status\"},"
+                        "{\"command\":\"reconfig\", \"description\":\"Reconfigure the device from web\"},"
+                        "{\"command\":\"options\",\"description\":\"Show the options menu\"}"
+                        "]");
+      telegramBot.SetCommands(commands);
+    }
+    else if (text == "/help" || text == "/options") 
+    {
+      String keyboardJson = "[[\"/pic\", \"/status\"]]";
+      telegramBot.SendMessageWithReplyKeyboard("Choose from one of the following options", keyboardJson);
+    }    
+    else if (text == "/status") 
+    {
+        telegramBot.SendMessage(GetStatusMessage());
+    }
+    else if (text.startsWith("/pic")) 
+    {
+        camera_fb_t* fb = TakePhoto();
+        Serial.println("Sending photo to telegram, Len: " + String(fb->len));
+        telegramBot.SendImage(fb->buf, fb->len);
+    }
+    else if (text == "/reconfig") 
+    {
+        reconfigOnNextCycle = true;
+    }
+}
+

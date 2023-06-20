@@ -341,8 +341,6 @@ void stopCameraServer() {
 void startCameraServer(){
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     
-    // TODO: TESTING THIS
-    //config.max_open_sockets = 2;
     config.uri_match_fn = httpd_uri_match_wildcard;
 
     httpd_uri_t any_uri = {

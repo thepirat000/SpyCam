@@ -3,9 +3,17 @@
 
 #include "Arduino.h"
 
+// Comment this line to enable Access Point mode
+#define DISABLE_AP
+// Comment this line to enable the brown-out detector 
+#define DISABLE_BROWNOUT
 
 // Config file format: Device Name \n WiFi name \n WiFi password \n IP Address \n Gateway \n Subnet \n PrimatyDNS \n SecondaryDNS
 const char* CONFIG_FILE = "/config.txt";
+
+// Config telegram
+#define TLGRM_BOT_TOKEN "XXXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXX"
+#define TLGRM_CHAT_ID "0000000000"
 
 // Config. These configs can be overriden in the config.txt file
 String DEVICE_NAME = "CAM1";
@@ -18,17 +26,20 @@ IPAddress PRIMARYDNS(8, 8, 8, 8); // WiFiClientSecure.connect will fail if DNS i
 IPAddress SECONDARYDNS(8, 8, 4, 4);
 
 // AP config
+#ifndef DISABLE_AP
 const char *SOFT_AP_SSID          = "EspCam (1-9)";    
 const char *SOFT_AP_PASSWORD      = "123456789";
+#endif
 
 // Google app scripts URLs
-const char* SCRIPT_URL_SEND_IMAGE = "/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8aDDsXQDcugzOxXAo_Um1btoAK8wBxRF6a3NhbYH/exec";
-const char* SCRIPT_URL_GET_CONFIG = "/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8aDDsXQDcugzOxXAo_Um1btoAK8wBxRF6a3NhbYH/exec";
+const char* SCRIPT_URL_SEND_IMAGE = "/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec";
+const char* SCRIPT_URL_GET_CONFIG = "/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec";
 const char* SCRIPT_DOMAIN = "script.google.com";
 
 struct Params
 {
     int min_cycle_seconds = 60;
+    int period_telegram = 1;
     int period_gs_cloud = 1;
     int period_sd_card = 2;
     int period_config_refresh = 5;
@@ -40,7 +51,7 @@ struct Params
     int saturation = 0;
     int quality = 14;
     
-    // Minimum time in ms between motion detection processing (i.e. to avoid quota limits)
+    // Minimum time in ms between motion detection processing
     int min_motion_cycle_seconds = 5;
     bool motion = true;
 } PARAMS;
