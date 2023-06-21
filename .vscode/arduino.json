@@ -2,5 +2,5 @@
     "configuration": "CPUFreq=240,FlashMode=qio,FlashFreq=80",
     "board": "esp32:esp32:esp32cam",
     "sketch": "SpyCam.ino",
-    "port": "COM9"
+    "port": "COM13"
 }

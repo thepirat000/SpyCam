@@ -48,7 +48,7 @@ unsigned long pics_count_motion = 0;      //Motion pics count
 // Config query paramaters for gs script POST call
 const String EXTRA_PARAMS_FORMAT = "&su={mins_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}&us={used_size_mb}";
 // Status values format
-const String STATUS_PARAMS_FORMAT = "Started {mins_up} mins ago - WiFi Signal: {wifi_signal} dBm\r\nCounter cycles: {counter_cycles} - MO: {counter_pics_motion} GS: {counter_pics_gs} SD: {counter_pics_sd}\r\nBytes free: {bytes_free} - Temp: {temperature_celsius}ºC - Used: {used_size_mb}MB";
+const String STATUS_PARAMS_FORMAT = "{mins_up} mins up - WiFi: {wifi_signal} dBm\r\nCounters: Cycle={counter_cycles} - MO={counter_pics_motion} GS={counter_pics_gs} SD={counter_pics_sd}\r\n{bytes_free} bytes free - Temp: {temperature_celsius}ºC - Used: {used_size_mb}MB";
 
 bool reconfigOnNextCycle = false;
 
@@ -88,7 +88,7 @@ void setup() {
 void loop() {
   const unsigned long start_time = millis();
 
-  Serial.printf("-- Cycle: %d - Signal: %d dBm\r\n", cycle_count, WiFi.RSSI());
+  Serial.printf("--> Cycle: %d - Signal: %d dBm - Temp: %.0f ºC\r\n", cycle_count, WiFi.RSSI(), temperatureRead());
 
   // if WiFi is down, try reconnecting
   reconnectWifi();
@@ -102,7 +102,7 @@ void loop() {
 
   if (cycle_count == 1) {
     // Send the start message
-    telegramBot.SendMessage(DEVICE_NAME + " " + GetStatusMessage());
+    telegramBot.SendMessage(DEVICE_NAME + " is online\r\n" + GetStatusMessage());
   }
 
   // Check for telegram new message commands
@@ -268,19 +268,25 @@ void reconnectWifi () {
   }
 }
 
-camera_fb_t* TakePhoto() {
-  if (PARAMS.flash) {
+camera_fb_t* TakePhoto(bool flash) {
+  if (flash) {
     flashOn();
     delay(100);
   }
+
   camera_fb_t* fb = esp_camera_fb_get();  
-  if (PARAMS.flash) {
+  if (flash) {
     delay(100);
     flashOff();
   }
+  
   Serial.printf("Image size: %d bytes\r\n", fb->len);
 
   return fb;
+}
+
+camera_fb_t* TakePhoto() {
+  return TakePhoto(PARAMS.flash);
 }
 
 // If forget==true, this function will be much faster but will not wait for the server response
@@ -420,8 +426,6 @@ String FormatConfigValues(String format) {
   format.replace("{temperature_celsius}", String((long)temperatureRead()));
   format.replace("{used_size_mb}", String((unsigned long)GetUsedSizeMB()));
 
-  Serial.println("Formatted config: " + format);
-
   return format;
 }
 
@@ -480,18 +484,15 @@ String refreshConfigFromWeb() {
       //${unixDate}:${minCycleSeconds},${period_gs},${period_sd},${period_conf},${flash},${frame_size},${v_flip},${quality},${telegram_chat_id},${re}
       sscanf(responseBody.c_str(), "%lu:%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d", &epoch, &PARAMS.min_cycle_seconds, &PARAMS.period_telegram, &PARAMS.period_gs_cloud, &PARAMS.period_sd_card,
       &PARAMS.period_config_refresh, &PARAMS.period_restart, &PARAMS.flash, &PARAMS.frame_size, &PARAMS.vflip, &PARAMS.brigthness, &PARAMS.saturation, &PARAMS.quality, &PARAMS.motion,	&PARAMS.min_motion_cycle_seconds);
+
       Serial.printf("New values\r\nepoch: %lu, min_cycle: %d, period_tlgm: %d, period_gs: %d, period sd: %d, period conf: %d, period restart: %d, flash: %d, framesize: %d, vflip: %d, bright: %d. sat: %d. quality: %d. motion: %d. min motion: %d\r\n", 
         epoch, PARAMS.min_cycle_seconds, PARAMS.period_telegram, PARAMS.period_gs_cloud, PARAMS.period_sd_card,
         PARAMS.period_config_refresh, PARAMS.period_restart, PARAMS.flash, PARAMS.frame_size, PARAMS.vflip, PARAMS.brigthness, PARAMS.saturation, PARAMS.quality,
         PARAMS.motion, PARAMS.min_motion_cycle_seconds);
 
       // Set cam settings
-      sensor_t * s = esp_camera_sensor_get();
-      s->set_framesize(s, (framesize_t)PARAMS.frame_size); 
-      s->set_vflip(s, PARAMS.vflip); 
-      s->set_quality(s, PARAMS.quality); 
-      s->set_brightness(s, PARAMS.brigthness);
-      s->set_saturation(s, PARAMS.saturation);
+      setCamConfigFromParams();
+
     } else {
       Serial.println("Params didn't change");
       sscanf(responseBody.c_str(), "%U:%*s", &epoch);
@@ -504,6 +505,15 @@ String refreshConfigFromWeb() {
   }
   
   return responseBody;
+}
+
+void setCamConfigFromParams() {
+  sensor_t * s = esp_camera_sensor_get();
+  s->set_framesize(s, (framesize_t)PARAMS.frame_size); 
+  s->set_vflip(s, PARAMS.vflip); 
+  s->set_quality(s, PARAMS.quality); 
+  s->set_brightness(s, PARAMS.brigthness);
+  s->set_saturation(s, PARAMS.saturation);  
 }
 
 // Serial commands (for debug)
@@ -524,7 +534,8 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
   if (text == "/start")
     {
       const String commands = F("["
-                        "{\"command\":\"pic\",\"description\":\"Take a photo and send immediately\"},"
+                        "{\"command\":\"pic\",\"description\":\"Take a photo\"},"
+                        "{\"command\":\"picflash\", \"description\":\"Take a photo with flash\"},"
                         "{\"command\":\"status\", \"description\":\"Get the current status\"},"
                         "{\"command\":\"reconfig\", \"description\":\"Reconfigure the device from web\"},"
                         "{\"command\":\"options\",\"description\":\"Show the options menu\"}"
@@ -533,7 +544,7 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     }
     else if (text == "/help" || text == "/options") 
     {
-      String keyboardJson = "[[\"/pic\", \"/status\"]]";
+      String keyboardJson = "[[\"/pic\", \"/picflash\", \"/status\"]]";
       telegramBot.SendMessageWithReplyKeyboard("Choose from one of the following options", keyboardJson);
     }    
     else if (text == "/status") 
@@ -542,13 +553,17 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     }
     else if (text.startsWith("/pic")) 
     {
-        camera_fb_t* fb = TakePhoto();
-        Serial.println("Sending photo to telegram, Len: " + String(fb->len));
+        bool flash = text.indexOf("flash") > 0;
+        camera_fb_t* fb = TakePhoto(flash);
         telegramBot.SendImage(fb->buf, fb->len);
     }
     else if (text == "/reconfig") 
     {
         reconfigOnNextCycle = true;
+    }
+    else if (text == "/restart") 
+    {
+        ESP.restart();
     }
 }
 

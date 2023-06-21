@@ -15,11 +15,12 @@ Telegram::Telegram(const String& token, const String& defaultChatId, HandleMessa
     this->client = new WiFiClientSecure();
     this->client->setInsecure();
     this->bot = new UniversalTelegramBot(token, *this->client);
+    this->bot->last_message_received = 0;
 }
 
 void Telegram::ProcessInputMessages() 
 {
-    Serial.println("Will process telegram messages. Last: " + String(bot->last_message_received));
+    Serial.println("Will process telegram messages. Offset: " + String(bot->last_message_received));
 
     int numNewMessages = bot->getUpdates(bot->last_message_received + 1);
 
@@ -28,6 +29,8 @@ void Telegram::ProcessInputMessages()
         handleNewMessages(numNewMessages);
         numNewMessages = bot->getUpdates(bot->last_message_received + 1);
     }
+
+    Serial.println("Telegram messages processing completed.");
 }
 
 void Telegram::SendMessage(const String& text) 
@@ -82,7 +85,6 @@ String Telegram::getChatId()
 bool isMoreDataAvailable()
 {
   bool moreData = imageBuffer && buffer_pos < imageLen;
-  Serial.println("is more data: " + String(moreData));
   return moreData;
 }
 
