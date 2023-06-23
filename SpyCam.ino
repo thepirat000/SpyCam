@@ -534,7 +534,7 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
   if (text == "/start")
     {
       const String commands = F("["
-                        "{\"command\":\"pic\",\"description\":\"Take a photo\"},"
+                        "{\"command\":\"pic\", \"description\":\"Take a photo\"},"
                         "{\"command\":\"picflash\", \"description\":\"Take a photo with flash\"},"
                         "{\"command\":\"status\", \"description\":\"Get the current status\"},"
                         "{\"command\":\"reconfig\", \"description\":\"Reconfigure the device from web\"},"
