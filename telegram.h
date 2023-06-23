@@ -4,7 +4,7 @@
 #include <WiFiClientSecure.h>
 #include <UniversalTelegramBot.h>
 
-typedef void (*HandleMessage)(const String& text, const String& chat_id, const String& from);
+typedef void (*HandleMessage)(const String& text, const String& chat_id, const String& from, long message_id);
 
 bool isMoreDataAvailable();
 byte *getNextBuffer();
@@ -12,7 +12,7 @@ int getNextBufferLen();
 
 class Telegram {
 public:
-  Telegram(const String& token, const String& defaultChatId, HandleMessage handleMessageCallback);
+  Telegram(const String& token, const String& defaultChatId, long message_id, HandleMessage handleMessageCallback);
   void ProcessInputMessages();
   void SendMessage(const String& text);
   void SendImage(uint8_t *buffer, unsigned long len);

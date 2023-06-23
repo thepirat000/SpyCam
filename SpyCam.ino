@@ -16,6 +16,7 @@ Notes:
 #include <ESP32Time.h>
 #include "Base64.h"
 #include <esp_wifi.h>
+#include <Preferences.h>
 
 #include "configuration.h"
 #include "esp_camera.h"
@@ -36,9 +37,11 @@ bool offline = true;
 ESP32Time rtc;
 String lastConfigString = "";
 unsigned int cycle_count = 1;
+esp_reset_reason_t reset_reason;
+Preferences preferences;
 
-void HandleTelegramMessage(const String& text, const String& chat_id, const String& from);
-Telegram telegramBot(TLGRM_BOT_TOKEN, TLGRM_CHAT_ID, HandleTelegramMessage);
+void HandleTelegramMessage(const String& text, const String& chat_id, const String& from, long message_id);
+Telegram *telegramBot;
 
 // Pics counters since restart
 unsigned long pics_count_cloud_gs = 0;    //Cloud gs pics count
@@ -56,6 +59,11 @@ bool reconfigOnNextCycle = false;
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
+
+  esp_reset_reason_t reason = esp_reset_reason();
+  
+  preferences.begin("SpyCam", false);
+  telegramBot = new Telegram(TLGRM_BOT_TOKEN, TLGRM_CHAT_ID, preferences.getLong("message_id"), HandleTelegramMessage);
 
   #ifdef DISABLE_BROWNOUT
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
@@ -102,12 +110,12 @@ void loop() {
 
   if (cycle_count == 1) {
     // Send the start message
-    telegramBot.SendMessage(DEVICE_NAME + " is online\r\n" + GetStatusMessage());
+    telegramBot->SendMessage(DEVICE_NAME + " is online. Reset reason: " + String(reset_reason) + "\r\n" + GetStatusMessage());
   }
 
   // Check for telegram new message commands
   if (!isStreaming && !offline && PARAMS.period_telegram > 0 && (cycle_count % PARAMS.period_telegram == 0)) {
-    telegramBot.ProcessInputMessages();
+    telegramBot->ProcessInputMessages();
   }
 
   // Capture image and send to google drive
@@ -125,15 +133,15 @@ void loop() {
   if (!offline && ((PARAMS.period_config_refresh > 0 && (cycle_count % PARAMS.period_config_refresh == 0)) || reconfigOnNextCycle)) {
     String newConfig = refreshConfigFromWeb();
     if (reconfigOnNextCycle) {
-      telegramBot.SendMessage("Reconfigured with: " + newConfig);
+      telegramBot->SendMessage("Reconfigured with: " + newConfig);
       reconfigOnNextCycle = false;
     }
   }
   
-
   // Restart cycle
   if (PARAMS.period_restart > 0 && (cycle_count % PARAMS.period_restart == 0)) {
     Serial.println("Will restart...");
+    preferences.end();
     ESP.restart();
   }
 
@@ -529,8 +537,11 @@ void serialInput() {
 }
 
 // Telegram
-void HandleTelegramMessage(const String& text, const String& chat_id, const String& from)
+void HandleTelegramMessage(const String& text, const String& chat_id, const String& from, long message_id)
 {
+  Serial.println("Message ID: " + String(message_id));
+  preferences.putLong("message_id", message_id);
+
   if (text == "/start")
     {
       const String commands = F("["
@@ -540,22 +551,22 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
                         "{\"command\":\"reconfig\", \"description\":\"Reconfigure the device from web\"},"
                         "{\"command\":\"options\",\"description\":\"Show the options menu\"}"
                         "]");
-      telegramBot.SetCommands(commands);
+      telegramBot->SetCommands(commands);
     }
     else if (text == "/help" || text == "/options") 
     {
       String keyboardJson = "[[\"/pic\", \"/picflash\", \"/status\"]]";
-      telegramBot.SendMessageWithReplyKeyboard("Choose from one of the following options", keyboardJson);
+      telegramBot->SendMessageWithReplyKeyboard("Choose from one of the following options", keyboardJson);
     }    
     else if (text == "/status") 
     {
-        telegramBot.SendMessage(GetStatusMessage());
+        telegramBot->SendMessage(GetStatusMessage());
     }
     else if (text.startsWith("/pic")) 
     {
         bool flash = text.indexOf("flash") > 0;
         camera_fb_t* fb = TakePhoto(flash);
-        telegramBot.SendImage(fb->buf, fb->len);
+        telegramBot->SendImage(fb->buf, fb->len);
     }
     else if (text == "/reconfig") 
     {
@@ -563,6 +574,7 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     }
     else if (text == "/restart") 
     {
+        preferences.end();
         ESP.restart();
     }
 }

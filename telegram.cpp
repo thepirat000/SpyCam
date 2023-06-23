@@ -7,7 +7,7 @@ const unsigned long CHUNK_SIZE = 8000UL;
 uint8_t *imageBuffer; 
 unsigned long imageLen;
 
-Telegram::Telegram(const String& token, const String& defaultChatId, HandleMessage handleMessageCallback) 
+Telegram::Telegram(const String& token, const String& defaultChatId, long message_id, HandleMessage handleMessageCallback) 
 {
     this->handleMessageCallback = handleMessageCallback;
     _token = token;
@@ -15,7 +15,7 @@ Telegram::Telegram(const String& token, const String& defaultChatId, HandleMessa
     this->client = new WiFiClientSecure();
     this->client->setInsecure();
     this->bot = new UniversalTelegramBot(token, *this->client);
-    this->bot->last_message_received = 0;
+    this->bot->last_message_received = message_id;
 }
 
 void Telegram::ProcessInputMessages() 
@@ -72,7 +72,7 @@ void Telegram::handleNewMessages(int numNewMessages)
     
     _lastChatId = chat_id;
 
-    this->handleMessageCallback(text, chat_id, from_name);
+    this->handleMessageCallback(text, chat_id, from_name, bot->last_message_received);
   }
 }
 
