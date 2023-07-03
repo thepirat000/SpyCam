@@ -44,9 +44,9 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
 Telegram *telegramBot;
 
 // Pics counters since restart
-unsigned long pics_count_cloud_gs = 0;    //Cloud gs pics count
-unsigned long pics_count_sd = 0;          //SD card pics count
-unsigned long pics_count_motion = 0;      //Motion pics count 
+unsigned long pics_count_cloud_gs;    //Cloud gs pics count
+unsigned long pics_count_sd;          //SD card pics count
+unsigned long pics_count_motion;      //Motion pics count 
 
 // Config query paramaters for gs script POST call
 const String EXTRA_PARAMS_FORMAT = "&su={mins_up}&ws={wifi_signal}&cc={counter_cycles}&cm={counter_pics_motion}&cg={counter_pics_gs}&cs={counter_pics_sd}&bf={bytes_free}&tc={temperature_celsius}&us={used_size_mb}";
@@ -65,6 +65,8 @@ void setup() {
   preferences.begin("SpyCam", false);
   telegramBot = new Telegram(TLGRM_BOT_TOKEN, TLGRM_CHAT_ID, preferences.getLong("message_id"), HandleTelegramMessage);
 
+  GetCounters();
+  
   #ifdef DISABLE_BROWNOUT
   WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0); 
   #endif
@@ -140,9 +142,7 @@ void loop() {
   
   // Restart cycle
   if (PARAMS.period_restart > 0 && (cycle_count % PARAMS.period_restart == 0)) {
-    Serial.println("Will restart...");
-    preferences.end();
-    ESP.restart();
+    Restart();
   }
 
   cycle_count++;
@@ -379,6 +379,8 @@ String CaptureAndSend(bool isMotionDetected, bool forget) {
     } else {
       pics_count_cloud_gs++;
     }
+
+    SaveCounters();
   }
   else {
     esp_camera_fb_return(fb);
@@ -405,6 +407,7 @@ String CaptureAndStore(int count) {
     if (SD_writeFile(SD_MMC, filename.c_str(), fb->buf, fb->len)) {
       Serial.printf("File %s saved\r\n", filename.c_str());
       pics_count_sd++;
+      SaveCounters();
     } else {
       Serial.println("Saving failed");
     }
@@ -574,8 +577,25 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     }
     else if (text == "/restart") 
     {
-        preferences.end();
-        ESP.restart();
+        Restart();
     }
 }
 
+void Restart() {
+  Serial.println("Will restart...");
+  SaveCounters();
+  preferences.end();
+  ESP.restart();
+}
+
+void GetCounters() {
+  pics_count_cloud_gs = preferences.getULong("count_gs");
+  pics_count_sd = preferences.getULong("count_sd");
+  pics_count_motion = preferences.getULong("count_mo");
+}
+
+void SaveCounters() {
+  preferences.putULong("count_gs", pics_count_cloud_gs);
+  preferences.putULong("count_sd", pics_count_sd);
+  preferences.putULong("count_mo", pics_count_motion);
+}
