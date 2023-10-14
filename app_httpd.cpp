@@ -20,10 +20,10 @@
 
 typedef struct {
     httpd_req_t *req;
-    size_t len;
+    size_t len; 
 } jpg_chunking_t;
 
-#define PART_BOUNDARY "123456789000000000000987654321"
+#define PART_BOUNDARY "--THEPIRAT--"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 static const char* _STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n";
@@ -261,6 +261,7 @@ static esp_err_t cmd_handler(httpd_req_t *req){
     return httpd_resp_send(req, NULL, 0);
 }
 
+// Get the current status to set the selector values in the page
 static esp_err_t status_handler(httpd_req_t *req){
     static char json_response[1024];
 
@@ -268,7 +269,10 @@ static esp_err_t status_handler(httpd_req_t *req){
     char * p = json_response;
     *p++ = '{';
 
-    p+=sprintf(p, "\"framesize\":%u,", s->status.framesize);
+    // Fix the val for the page
+    int fixIndexInv[14] = {-1,0,-1,3,-1,4,5,-1,6,7,8,-1,9,10};
+
+    p+=sprintf(p, "\"framesize\":%u,", fixIndexInv[s->status.framesize]);
     p+=sprintf(p, "\"quality\":%u,", s->status.quality);
     p+=sprintf(p, "\"brightness\":%d,", s->status.brightness);
     p+=sprintf(p, "\"contrast\":%d,", s->status.contrast);

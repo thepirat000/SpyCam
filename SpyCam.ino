@@ -36,6 +36,7 @@ unsigned long wifi_interval = 30000;
 bool offline = true;
 ESP32Time rtc;
 String lastConfigString = "";
+String publicIpAddress = "";
 unsigned int cycle_count = 1;
 esp_reset_reason_t reset_reason;
 Preferences preferences;
@@ -247,16 +248,21 @@ bool startWiFi() {
   
   offline = !connected;
 
+  // Get the public IP 
+  publicIpAddress = connected ? GetPublicIp() : "Disconnected";
+
   Serial.println("");
   Serial.println(connected ? "WiFi connected" : "Offline mode");
-  Serial.printf("IP: %s\r\nGateway: %s\r\nSubnet: %s\r\nPrimary DNS: %s\r\nSecondary DNS: %s\r\n", LOCAL_IP.toString().c_str(),
+  Serial.printf("Public IP: %s\r\n", publicIpAddress.c_str());
+  Serial.printf("Private IP: %s\r\nGateway: %s\r\nSubnet: %s\r\nPrimary DNS: %s\r\nSecondary DNS: %s\r\n", LOCAL_IP.toString().c_str(),
         GATEWAY.toString().c_str(), SUBNET.toString().c_str(), PRIMARYDNS.toString().c_str(), SECONDARYDNS.toString().c_str());
         
   if (connected) {
       // Start the camera web server
       Serial.printf("Connected to %s. Signal: %d dBm.\r\n", SSID.c_str(), WiFi.RSSI());
       startCameraServer();
-      Serial.println("Web Server Ready! (STA) Use 'http://" + WiFi.localIP().toString() + "' to connect");
+      Serial.print("Web Server Ready! (STA) Use 'http://" + WiFi.localIP().toString() + "' to connect");
+      Serial.println(" or 'http://" + publicIpAddress + "'");
 #ifndef DISABLE_AP      
       Serial.println("Web Server Ready! (AP) Use 'http://" + WiFi.softAPIP().toString() + "' to connect");
 #endif      
@@ -423,7 +429,10 @@ String GetStatusQueryParams() {
 }
 
 String GetStatusMessage() {
-  return FormatConfigValues(STATUS_PARAMS_FORMAT);
+  String status = DEVICE_NAME + " IP: " + publicIpAddress + "\r\n"  ;
+  status.concat(FormatConfigValues(STATUS_PARAMS_FORMAT));
+
+  return status;
 }
 
 String FormatConfigValues(String format) {

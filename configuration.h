@@ -40,10 +40,10 @@ struct Params
 {
     int min_cycle_seconds = 60;
     int period_telegram = 1;
-    int period_gs_cloud = 1;
-    int period_sd_card = 2;
+    int period_gs_cloud = 5;
+    int period_sd_card = 10;
     int period_config_refresh = 5;
-    int period_restart = 100;
+    int period_restart = 200;
     bool flash = false;
     int frame_size = 12;
     bool vflip = 0;
@@ -53,5 +53,5 @@ struct Params
     
     // Minimum time in ms between motion detection processing
     int min_motion_cycle_seconds = 5;
-    bool motion = true;
+    bool motion = false;
 } PARAMS;
