@@ -57,7 +57,8 @@ const String STATUS_PARAMS_FORMAT = "{mins_up} mins up - WiFi: {wifi_signal} dBm
 bool reconfigOnNextCycle = false;
 
 // **** SETUP **** //
-void setup() {
+void setup() 
+{
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
@@ -96,7 +97,8 @@ void setup() {
 }
 
 // **** LOOP **** //
-void loop() {
+void loop() 
+{
   const unsigned long start_time = millis();
 
   Serial.printf("--> Cycle: %d - Signal: %d dBm - Temp: %.0f ºC\r\n", cycle_count, WiFi.RSSI(), temperatureRead());
@@ -173,7 +175,8 @@ void loop() {
   }
 }
 
-void motionDetection(unsigned long sleep_end_time) {
+void motionDetection(unsigned long sleep_end_time) 
+{
   int motion_detected = digitalRead(PIR_SENSOR_NUM);
   if (!isStreaming && motion_detected == HIGH) {
     Serial.println("Motion detected !");
@@ -196,7 +199,8 @@ void motionDetection(unsigned long sleep_end_time) {
   }
 }
 
-bool initCamera() {
+bool initCamera() 
+{
   //esp_camera_deinit();
 
   camera_config_t cam_config = get_default_camera_config();
@@ -214,7 +218,8 @@ bool initCamera() {
   return true;
 }
 
-bool startWiFi() {
+bool startWiFi() 
+{
   // The following two lines are needed just in case the device is in LR mode 
   esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
   esp_wifi_set_protocol(WIFI_IF_AP, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
@@ -228,7 +233,8 @@ bool startWiFi() {
 #endif
   
   // Setup STA
-  if (!WiFi.config(LOCAL_IP, GATEWAY, SUBNET, PRIMARYDNS, SECONDARYDNS)) {
+  if (!WiFi.config(LOCAL_IP, GATEWAY, SUBNET, PRIMARYDNS, SECONDARYDNS)) 
+  {
     Serial.println("STA Failed to configure");
   }
 
@@ -257,21 +263,22 @@ bool startWiFi() {
   Serial.printf("Private IP: %s\r\nGateway: %s\r\nSubnet: %s\r\nPrimary DNS: %s\r\nSecondary DNS: %s\r\n", LOCAL_IP.toString().c_str(),
         GATEWAY.toString().c_str(), SUBNET.toString().c_str(), PRIMARYDNS.toString().c_str(), SECONDARYDNS.toString().c_str());
         
-  if (connected) {
+  if (connected) 
+  {
       // Start the camera web server
       Serial.printf("Connected to %s. Signal: %d dBm.\r\n", SSID.c_str(), WiFi.RSSI());
-      startCameraServer();
-      Serial.print("Web Server Ready! (STA) Use 'http://" + WiFi.localIP().toString() + "' to connect");
-      Serial.println(" or 'http://" + publicIpAddress + "'");
-#ifndef DISABLE_AP      
+      startCameraServer(WEB_SERVER_USER, WEB_SERVER_PASSWORD);
+      Serial.printf("Web Server Ready! (STA) Use 'http://%s' to connect or 'http://%s'\r\n%s:%s\r\n", WiFi.localIP().toString().c_str(), publicIpAddress.c_str(), WEB_SERVER_USER, WEB_SERVER_PASSWORD);
+      #ifndef DISABLE_AP      
       Serial.println("Web Server Ready! (AP) Use 'http://" + WiFi.softAPIP().toString() + "' to connect");
-#endif      
+      #endif      
   }
 
   return connected;  
 }
 
-void reconnectWifi () {
+void reconnectWifi() 
+{
   unsigned long current_ms = millis();
 
   if ((WiFi.status() != WL_CONNECTED) && (current_ms - wifi_prev_ms >= wifi_interval)) {
@@ -282,7 +289,8 @@ void reconnectWifi () {
   }
 }
 
-camera_fb_t* TakePhoto(bool flash) {
+camera_fb_t* TakePhoto(bool flash) 
+{
   if (flash) {
     flashOn();
     delay(100);
@@ -299,12 +307,14 @@ camera_fb_t* TakePhoto(bool flash) {
   return fb;
 }
 
-camera_fb_t* TakePhoto() {
+camera_fb_t* TakePhoto() 
+{
   return TakePhoto(PARAMS.flash);
 }
 
 // If forget==true, this function will be much faster but will not wait for the server response
-String CaptureAndSend(bool isMotionDetected, bool forget) {
+String CaptureAndSend(bool isMotionDetected, bool forget) 
+{
   if (isMotionDetected) {
     Serial.println("-- MOTION CAPTURE, STORE IN CLOUD & SEND TO TELEGRAM --");  
   } else {
@@ -398,7 +408,8 @@ String CaptureAndSend(bool isMotionDetected, bool forget) {
   return body;
 }
 
-String CaptureAndStore(int count) {
+String CaptureAndStore(int count) 
+{
   Serial.println("-- CAPTURE & STORE IN SD CARD --");
 
   for(int i = 0; i < count; i++) {
@@ -424,18 +435,21 @@ String CaptureAndStore(int count) {
   return "";
 }
 
-String GetStatusQueryParams() {
+String GetStatusQueryParams() 
+{
   return FormatConfigValues(EXTRA_PARAMS_FORMAT);
 }
 
-String GetStatusMessage() {
+String GetStatusMessage() 
+{
   String status = DEVICE_NAME + " IP: " + publicIpAddress + "\r\n"  ;
   status.concat(FormatConfigValues(STATUS_PARAMS_FORMAT));
 
   return status;
 }
 
-String FormatConfigValues(String format) {
+String FormatConfigValues(String format) 
+{
   format.replace("{mins_up}", String((unsigned long)(esp_timer_get_time() / 1000000 / 60)));
   format.replace("{wifi_signal}", String(WiFi.RSSI()));
   format.replace("{counter_cycles}", String(cycle_count));
@@ -450,7 +464,8 @@ String FormatConfigValues(String format) {
 }
 
 // Sets the configuration from the /config.txt file in the SD card, if present
-void setConfigFromFile() {
+void setConfigFromFile() 
+{
   String tmp;
   if (SD_MMC.exists(CONFIG_FILE)) {
     Serial.println("Will set config from config.txt");
@@ -480,7 +495,8 @@ void setConfigFromFile() {
 }
 
 // Refreshes the clock, the cycles configuration and camera configuration from gs web
-String refreshConfigFromWeb() {
+String refreshConfigFromWeb() 
+{
   Serial.println("-- CONFIG REFRESH --");
 
   // Call getConfig google script and store in PARAMS
@@ -527,7 +543,8 @@ String refreshConfigFromWeb() {
   return responseBody;
 }
 
-void setCamConfigFromParams() {
+void setCamConfigFromParams() 
+{
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, (framesize_t)PARAMS.frame_size); 
   s->set_vflip(s, PARAMS.vflip); 
@@ -537,7 +554,8 @@ void setCamConfigFromParams() {
 }
 
 // Serial commands (for debug)
-void serialInput() {
+void serialInput() 
+{
     if (Serial.available() > 0) {
       String recv = Serial.readStringUntil('\r');
       recv.trim();
@@ -590,20 +608,23 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     }
 }
 
-void Restart() {
+void Restart() 
+{
   Serial.println("Will restart...");
   SaveCounters();
   preferences.end();
   ESP.restart();
 }
 
-void GetCounters() {
+void GetCounters() 
+{
   pics_count_cloud_gs = preferences.getULong("count_gs");
   pics_count_sd = preferences.getULong("count_sd");
   pics_count_motion = preferences.getULong("count_mo");
 }
 
-void SaveCounters() {
+void SaveCounters() 
+{
   preferences.putULong("count_gs", pics_count_cloud_gs);
   preferences.putULong("count_sd", pics_count_sd);
   preferences.putULong("count_mo", pics_count_motion);

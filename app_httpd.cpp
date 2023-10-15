@@ -1,24 +1,21 @@
-// Copyright 2015-2016 Espressif Systems (Shanghai) PTE LTD
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
 #include "camera_index.h"
 #include "Arduino.h"
 #include "app_httpd.h"
+#include "esp_tls_crypto.h"
 
-typedef struct {
+#define HTTPD_401 "401 UNAUTHORIZED"
+
+typedef struct 
+{
+    const char *username;
+    const char *password;
+} basic_auth_info_t;
+
+typedef struct 
+{
     httpd_req_t *req;
     size_t len; 
 } jpg_chunking_t;
@@ -30,10 +27,13 @@ static const char* _STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %
 
 httpd_handle_t stream_httpd = NULL;
 httpd_handle_t camera_httpd = NULL;
+String web_server_user;
+String web_server_password;
 
 bool isStreaming = false;
 
-static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size_t len){
+static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size_t len)
+{
     jpg_chunking_t *j = (jpg_chunking_t *)arg;
     if(!index){
         j->len = 0;
@@ -45,7 +45,8 @@ static size_t jpg_encode_stream(void * arg, size_t index, const void* data, size
     return len;
 }
 
-static esp_err_t capture_handler(httpd_req_t *req){
+static esp_err_t capture_handler(httpd_req_t *req)
+{
     camera_fb_t * fb = NULL;
     esp_err_t res = ESP_OK;
     int64_t fr_start = esp_timer_get_time();
@@ -81,7 +82,8 @@ static esp_err_t capture_handler(httpd_req_t *req){
     return res;
 }
 
-static esp_err_t stream_handler(httpd_req_t *req){
+static esp_err_t stream_handler(httpd_req_t *req)
+{
     camera_fb_t * fb = NULL;
     esp_err_t res = ESP_OK;
     size_t _jpg_buf_len = 0;
@@ -177,7 +179,8 @@ static esp_err_t stream_handler(httpd_req_t *req){
     return res;
 }
 
-static esp_err_t cmd_handler(httpd_req_t *req){
+static esp_err_t cmd_handler(httpd_req_t *req)
+{
     char*  buf;
     size_t buf_len;
     char variable[32] = {0,};
@@ -262,7 +265,8 @@ static esp_err_t cmd_handler(httpd_req_t *req){
 }
 
 // Get the current status to set the selector values in the page
-static esp_err_t status_handler(httpd_req_t *req){
+static esp_err_t status_handler(httpd_req_t *req)
+{
     static char json_response[1024];
 
     sensor_t * s = esp_camera_sensor_get();
@@ -304,33 +308,132 @@ static esp_err_t status_handler(httpd_req_t *req){
     return httpd_resp_send(req, json_response, strlen(json_response));
 }
 
-static esp_err_t index_handler(httpd_req_t *req){
+static esp_err_t index_handler(httpd_req_t *req)
+{
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     sensor_t * s = esp_camera_sensor_get();
     return httpd_resp_send(req, (const char *)index_ov2640_html_gz, index_ov2640_html_gz_len);
 }
 
-static esp_err_t any_handler(httpd_req_t *req){
-    String url = String(req->uri);
-    Serial.println("URL: " + url);
-
-    if (url == "/") {
-      return index_handler(req);
-    } else if (url.indexOf("/status") == 0) {
-      return status_handler(req);
-    } else if (url.indexOf("/capture") == 0) {
-      return capture_handler(req);
-    } else if (url.indexOf("/control") == 0) {
-      return cmd_handler(req);
-    } else {
-      Serial.println("Handler not found for URL: " + url);
-      httpd_resp_send_404(req);
-      return ESP_FAIL;
-    }
+static char *http_auth_basic(const char *username, const char *password)
+{
+    int out;
+    char *user_info = NULL;
+    char *digest = NULL;
+    size_t n = 0;
+    asprintf(&user_info, "%s:%s", username, password);
+    esp_crypto_base64_encode(NULL, 0, &n, (const unsigned char *)user_info, strlen(user_info));
+    digest = (char *)calloc(1, 6 + n + 1);
+    strcpy(digest, "Basic ");
+    esp_crypto_base64_encode((unsigned char *)digest + 6, n, (size_t *)&out, (const unsigned char *)user_info, strlen(user_info));
+    free(user_info);
+    return digest;
 }
 
-void stopCameraServer() {
+// Handles authentication and returns true if authenticated
+static bool Handle_Authentication(httpd_req_t *req)
+{
+    esp_err_t result = ESP_OK;
+    char *buf = NULL;
+    size_t buf_len = 0;
+    basic_auth_info_t *basic_auth_info = (basic_auth_info_t *)req->user_ctx;
+
+    bool authenticated = false;
+    buf_len = httpd_req_get_hdr_value_len(req, "Authorization") + 1;
+    if (buf_len > 1) {
+        buf = (char *)calloc(1, buf_len);
+        httpd_req_get_hdr_value_str(req, "Authorization", buf, buf_len);
+
+        char *auth_credentials = http_auth_basic(basic_auth_info->username, basic_auth_info->password);
+        if (strncmp(auth_credentials, buf, buf_len)) {
+            // Not authenticated
+            httpd_resp_set_status(req, HTTPD_401);
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_set_hdr(req, "Connection", "keep-alive");
+            httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"ThePirat\"");
+            httpd_resp_send(req, NULL, 0);
+        } else {
+            // Authenticated
+            httpd_resp_set_hdr(req, "Connection", "keep-alive");
+            authenticated = true;
+        }
+        free(auth_credentials);
+        free(buf);
+    } else {
+        httpd_resp_set_status(req, HTTPD_401);
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_set_hdr(req, "Connection", "keep-alive");
+        httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"ThePirat\"");
+        httpd_resp_send(req, NULL, 0);
+    }
+
+    return authenticated;
+}
+
+// Handler for port 80 (control)
+static esp_err_t any_80_uri_handler(httpd_req_t *req)
+{
+    bool authenticated = Handle_Authentication(req);
+
+    if (authenticated) {
+        String url = String(req->uri);
+        Serial.println("URL: " + url);
+
+        if (url == "/") {
+            return index_handler(req);
+        } else if (url.indexOf("/status") == 0) {
+            return status_handler(req);
+        } else if (url.indexOf("/capture") == 0) {
+            return capture_handler(req);
+        } else if (url.indexOf("/control") == 0) {
+            return cmd_handler(req);
+        } else {
+            Serial.println("Handler not found for URL: " + url);
+            httpd_resp_send_404(req);
+            return ESP_FAIL;
+        }
+    }
+
+    return ESP_OK;
+}
+
+// Handler for port 81 (stream)
+static esp_err_t any_81_uri_handler(httpd_req_t *req)
+{
+    esp_err_t result = ESP_OK;
+
+    bool authenticated = Handle_Authentication(req);
+
+    if (authenticated) {
+        return stream_handler(req);
+    }
+
+    return ESP_OK;
+}
+
+typedef esp_err_t (*WebHandler)(httpd_req_t *req);
+
+static void httpd_register_basic_auth(httpd_handle_t server, const char *url, const char *user, const char *password, WebHandler handler)
+{
+    basic_auth_info_t *basic_auth_info = (basic_auth_info_t *)calloc(1, sizeof(basic_auth_info_t));
+    basic_auth_info->username = user;
+    basic_auth_info->password = password;
+
+    httpd_uri_t uri_handler = 
+    {
+        .uri       = url,
+        .method    = HTTP_GET,
+        .handler   = handler,
+        .user_ctx  = basic_auth_info
+    };
+
+    httpd_register_uri_handler(server, &uri_handler);
+}
+
+
+void stopCameraServer() 
+{
     if (camera_httpd != NULL) {
       Serial.println("Will stop web server");
       httpd_stop(camera_httpd);
@@ -342,37 +445,24 @@ void stopCameraServer() {
     }
 }
 
-void startCameraServer(){
+void startCameraServer(const char *user, const char *password) 
+{
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     
     config.uri_match_fn = httpd_uri_match_wildcard;
-
-    httpd_uri_t any_uri = {
-        .uri       = "*",
-        .method    = HTTP_GET,
-        .handler   = any_handler,
-        .user_ctx  = NULL
-    };
-
-   httpd_uri_t stream_uri = {
-        .uri       = "/stream",
-        .method    = HTTP_GET,
-        .handler   = stream_handler,
-        .user_ctx  = NULL
-    };
 
     Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     
     stopCameraServer();
     
     if (httpd_start(&camera_httpd, &config) == ESP_OK) {
-        httpd_register_uri_handler(camera_httpd, &any_uri);
+        httpd_register_basic_auth(camera_httpd, "*", user, password, any_80_uri_handler);
     }
 
     config.server_port += 1;
     config.ctrl_port += 1;
     Serial.printf("Starting stream server on port: '%d'\n", config.server_port);
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
-        httpd_register_uri_handler(stream_httpd, &stream_uri);
+        httpd_register_basic_auth(stream_httpd, "/stream", user, password, any_81_uri_handler);
     }
 }

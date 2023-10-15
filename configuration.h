@@ -36,6 +36,9 @@ const char* SCRIPT_URL_SEND_IMAGE = "/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 const char* SCRIPT_URL_GET_CONFIG = "/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec";
 const char* SCRIPT_DOMAIN = "script.google.com";
 
+const char* WEB_SERVER_USER = "admin";
+const char* WEB_SERVER_PASSWORD = "fede";
+
 struct Params
 {
     int min_cycle_seconds = 60;

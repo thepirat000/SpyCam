@@ -1,4 +1,4 @@
-/* ThePirat 2023 - Telegram helper */
+/* ThePirat 2023 - Telegram helper using UniversalTelegramBot library v1.3.0*/
 #include "telegram.h"
 
 unsigned long buffer_pos = 0;

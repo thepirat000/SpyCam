@@ -2,5 +2,5 @@
 
 extern bool isStreaming;
 
-void startCameraServer();
+void startCameraServer(const char *user, const char *password);
 void stopCameraServer();
