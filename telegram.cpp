@@ -52,6 +52,7 @@ void Telegram::SendImage(uint8_t *buffer, unsigned long len)
   buffer_pos = 0;
 
   Serial.println("Sending image to telegram, Len: " + String(imageLen));
+
   bot->sendPhotoByBinary(getChatId(), "image/jpeg", imageLen, isMoreDataAvailable, nullptr, getNextBuffer, getNextBufferLen);
 }
 

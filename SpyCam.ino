@@ -214,6 +214,14 @@ bool initCamera()
   // Set the default frame_size config
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, cam_config.frame_size); 
+  
+  // Try to get an image
+  camera_fb_t* fb = TakePhoto();
+  if (!fb) {
+    Serial.println("Camera first capture failed");
+    return false;
+  }
+  esp_camera_fb_return(fb);
 
   return true;
 }
@@ -596,7 +604,14 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     {
         bool flash = text.indexOf("flash") > 0;
         camera_fb_t* fb = TakePhoto(flash);
-        telegramBot->SendImage(fb->buf, fb->len);
+        if(fb) {
+          telegramBot->SendImage(fb->buf, fb->len);
+          
+          esp_camera_fb_return(fb);
+        } else {
+          Serial.println("Camera capture failed");
+          telegramBot->SendMessage("Camera capture failed");
+        }
     }
     else if (text == "/reconfig") 
     {
