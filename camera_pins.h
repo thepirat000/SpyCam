@@ -46,6 +46,7 @@ camera_config_t get_default_camera_config() {
   config.frame_size = FRAMESIZE_SXGA;
   config.jpeg_quality = 16; // 10 - 63
   config.fb_count = 1;
+  config.grab_mode = CAMERA_GRAB_LATEST;
   return config;
 }
 

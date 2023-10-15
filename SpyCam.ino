@@ -305,6 +305,7 @@ camera_fb_t* TakePhoto(bool flash)
   }
 
   camera_fb_t* fb = esp_camera_fb_get();  
+
   if (flash) {
     delay(100);
     flashOff();

@@ -52,6 +52,7 @@ static esp_err_t capture_handler(httpd_req_t *req)
     int64_t fr_start = esp_timer_get_time();
 
     fb = esp_camera_fb_get();
+
     if (!fb) {
         Serial.println("Camera capture failed");
         httpd_resp_send_500(req);
@@ -78,7 +79,7 @@ static esp_err_t capture_handler(httpd_req_t *req)
     }
     esp_camera_fb_return(fb);
     int64_t fr_end = esp_timer_get_time();
-    Serial.printf("JPG: %uB %ums\n", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
+    Serial.printf("JPG: %u B %ums\n", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start)/1000));
     return res;
 }
 
