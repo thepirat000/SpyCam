@@ -216,12 +216,15 @@ bool initCamera()
   s->set_framesize(s, cam_config.frame_size); 
   
   // Try to get an image
-  camera_fb_t* fb = TakePhoto();
-  if (!fb) {
-    Serial.println("Camera first capture failed");
-    return false;
+  for(int i = 0; i < 2; i++) {
+    camera_fb_t* fb = TakePhoto();
+    if (!fb) {
+      Serial.println("Camera first capture failed");
+      return false;
+    }
+    esp_camera_fb_return(fb);
+    delay(1);
   }
-  esp_camera_fb_return(fb);
 
   return true;
 }
