@@ -454,7 +454,7 @@ String GetStatusQueryParams()
 
 String GetStatusMessage() 
 {
-  String status = DEVICE_NAME + " IP: " + publicIpAddress + "\r\n"  ;
+  String status = DEVICE_NAME + " IP: " + WiFi.localIP().toString() + " / " + publicIpAddress + "\r\n"  ;
   status.concat(FormatConfigValues(STATUS_PARAMS_FORMAT));
 
   return status;

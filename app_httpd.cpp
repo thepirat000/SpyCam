@@ -247,18 +247,18 @@ static esp_err_t cmd_handler(httpd_req_t *req)
     else if(!strcmp(variable, "special_effect")) res = s->set_special_effect(s, val);
     else if(!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, val);
     else if(!strcmp(variable, "ae_level")) res = s->set_ae_level(s, val);
-    else if(!strcmp(variable, "face_detect")) {
-    }
-    else if(!strcmp(variable, "face_enroll")) { 
-    }
-    else if(!strcmp(variable, "face_recognize")) {
-    }
     else {
         res = -1;
     }
 
     if(res){
         return httpd_resp_send_500(req);
+    }
+
+    // Remove image in buffer
+    camera_fb_t * fb = esp_camera_fb_get();
+    if (fb) {
+        esp_camera_fb_return(fb);
     }
 
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
