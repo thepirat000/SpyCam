@@ -278,7 +278,7 @@ bool startWiFi()
   {
       // Start the camera web server
       Serial.printf("Connected to %s. Signal: %d dBm.\r\n", SSID.c_str(), WiFi.RSSI());
-      startCameraServer(WEB_SERVER_USER, WEB_SERVER_PASSWORD);
+      startCameraServer(WEB_SERVER_USER, WEB_SERVER_PASSWORD, SERVER_PORT);
       Serial.printf("Web Server Ready! (STA) Use 'http://%s' to connect or 'http://%s'\r\n%s:%s\r\n", WiFi.localIP().toString().c_str(), publicIpAddress.c_str(), WEB_SERVER_USER, WEB_SERVER_PASSWORD);
       #ifndef DISABLE_AP      
       Serial.println("Web Server Ready! (AP) Use 'http://" + WiFi.softAPIP().toString() + "' to connect");
