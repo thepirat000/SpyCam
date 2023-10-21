@@ -446,11 +446,13 @@ void stopCameraServer()
     }
 }
 
-void startCameraServer(const char *user, const char *password) 
+void startCameraServer(const char *user, const char *password, int serverPort) 
 {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     
     config.uri_match_fn = httpd_uri_match_wildcard;
+    config.server_port = serverPort;
+    config.ctrl_port = serverPort;
 
     Serial.printf("Starting web server on port: '%d'\n", config.server_port);
     

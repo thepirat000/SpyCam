@@ -12,14 +12,17 @@
 const char* CONFIG_FILE = "/config.txt";
 
 // Config telegram
+
 #define TLGRM_BOT_TOKEN "XXXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
 #define TLGRM_CHAT_ID "XXXXXXXXXX"
 
+
 // Config. These configs can be overriden in the config.txt file
-String DEVICE_NAME = "CAM1";
+String DEVICE_NAME = "LUNA3";
 String SSID = "THEPIRAT_2.4G"; // "ThePirat++";
 String PASSWORD = "333" + String(175 * 23029);
-IPAddress LOCAL_IP(192, 168, 1, 103);
+int SERVER_PORT = 80;
+IPAddress LOCAL_IP(192, 168, 1, 124);
 IPAddress GATEWAY(192, 168, 1, 1);
 IPAddress SUBNET(255, 255, 255, 0);
 IPAddress PRIMARYDNS(8, 8, 8, 8); // WiFiClientSecure.connect will fail if DNS is not set

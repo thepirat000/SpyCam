@@ -500,6 +500,7 @@ void setConfigFromFile()
         if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { SUBNET.fromString(tmp); } }
         if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { PRIMARYDNS.fromString(tmp); } }
         if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { SECONDARYDNS.fromString(tmp); } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 1) { SERVER_PORT = tmp.toInt(); } }
       }
       file.close();
     }

@@ -547,9 +547,10 @@
         </section>
         <script>
 document.addEventListener('DOMContentLoaded', function (event) {
-  var baseHost = document.location.origin
-  var controlUrl = baseHost; //'https://localhost:44391';  //baseHost;
-  var streamUrl = baseHost + ':81'; //'https://localhost:44391'; //baseHost + ':81';
+  var controlUrl = document.location.origin;
+
+  var streamPort = (window.location.port ? window.location.port : window.location.protocol == "https:" ? 443 : 80) + 1;
+  var streamUrl = window.location.protocol + "//" + window.location.hostname + ":" + streamPort;
 
   const hide = el => {
     el.classList.add('hidden')
