@@ -1,8 +1,6 @@
 /* ThePirat 2023 - Http client helper */
 #pragma once
 
-#include <WiFiClientSecure.h>
-
 struct HttpResponse
 {
     int status;
@@ -10,6 +8,6 @@ struct HttpResponse
     String location;
 };
 
-String HttpGet(const String& url, int& statusCode);
-String GetClientResponseLocationHeader(WiFiClientSecure &client, bool stop);
+HttpResponse HttpGet(const String& url, bool followRedirects = true);
+HttpResponse HttpPost(const String& url, const String& payload, bool followRedirects = false);
 String GetPublicIp();

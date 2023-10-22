@@ -1,64 +1,61 @@
 /* ThePirat 2023 - Http client helper */
-
 #include <WiFiClientSecure.h>
 #include "http_client.h"
-
 #include <HTTPClient.h>
 
-String HttpGet(const String& url, int& statusCode)
+HttpResponse HttpGet(const String& url, bool followRedirects)
 {
+  HttpResponse response;
   WiFiClientSecure *client = new WiFiClientSecure;
   client->setInsecure();
   String payload;
   {
     HTTPClient https;
-    https.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    https.setFollowRedirects(followRedirects ? HTTPC_FORCE_FOLLOW_REDIRECTS : HTTPC_DISABLE_FOLLOW_REDIRECTS);
     if (https.begin(*client, url))
     {
-      statusCode = https.GET();
-      if (statusCode >= 200 && statusCode <= 301) 
-      {
-        payload = https.getString();
-      }
+      response.status = https.GET();
+      response.body = https.getString();
       https.end();
     }
     else
     {
-      statusCode = -1;
+      response.status = -1;
     }
   }
   delete client;
-  return payload;
+  return response;
+}
+
+HttpResponse HttpPost(const String& url, const String& payload, bool followRedirects)
+{
+  HttpResponse response;
+  WiFiClientSecure *client = new WiFiClientSecure;
+  client->setInsecure();
+  {
+    HTTPClient https;
+    https.setFollowRedirects(followRedirects ? HTTPC_FORCE_FOLLOW_REDIRECTS : HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    https.addHeader("Content-Length", String(payload.length()));
+    https.addHeader("Content-Type", "application/json");
+
+    if (https.begin(*client, url))
+    {
+      response.status = https.POST(payload);
+      response.body = https.getString();
+      response.location = https.getLocation();
+      https.end();
+    }
+    else
+    {
+      response.status = -1;
+    }
+  }
+  delete client;
+  return response;
 }
 
 String GetPublicIp() 
 {
-    int statusCode;
-    String result = HttpGet("https://api.ipify.org/", statusCode);
-    return result;
-}
-
-String GetClientResponseLocationHeader(WiFiClientSecure &client, bool stop) 
-{
-  String location;
-
-  long runTime = millis();
-  while (location.length() == 0 && millis() < (runTime + 5000))
-  {
-    while (location.length() == 0 && client.available()) {
-      String line = client.readStringUntil('\n');
-
-      if (line.indexOf("Location: ") >= 0) {
-        location = line.substring(line.indexOf(":") + 2);
-      }
-    }
-
-    runTime = millis();
-  }
-
-  if (stop) {
-    client.stop();
-  }
-
-  return location;
+    HttpResponse result = HttpGet("https://api.ipify.org/");
+    return result.body;
 }

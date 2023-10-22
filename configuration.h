@@ -13,8 +13,12 @@ const char* CONFIG_FILE = "/config.txt";
 
 // Config telegram
 
-#define TLGRM_BOT_TOKEN "XXXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-#define TLGRM_CHAT_ID "XXXXXXXXXX"
+#define TLGRM_BOT_TOKEN "XXXXXXXXXXXXXXXXXX" // ThePiratCam
+#define TLGRM_CHAT_ID "123123123123" // ThePiratCam
+/*
+#define TLGRM_BOT_TOKEN "6368621665:AAE_rb9bjkBNLEOOofSad-jJYGygaeWdpEM" // ThePiratCam2
+#define TLGRM_CHAT_ID "6368621665" // ThePiratCam2
+*/
 
 // Config. These configs can be overriden in the config.txt file
 String DEVICE_NAME = "LUNA3";
@@ -34,13 +38,11 @@ const char *SOFT_AP_PASSWORD      = "123456789";
 #endif
 
 // Google app scripts URLs
-const char* SCRIPT_DOMAIN = "script.google.com";
-const char* SCRIPT_URL_SEND_IMAGE = "/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec";
-
-const char* SCRIPT_URL_GET_CONFIG = "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec?device={name}";
+const char* SCRIPT_URL_SEND_IMAGE = "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXX/exec";
+const char* SCRIPT_URL_GET_CONFIG = "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXX/exec?device={name}";
 
 const char* WEB_SERVER_USER = "admin";
-const char* WEB_SERVER_PASSWORD = "fede";
+const char* WEB_SERVER_PASSWORD = "admin";
 
 struct Params
 {

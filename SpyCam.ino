@@ -14,10 +14,8 @@ Notes:
 
 #include <WiFiClientSecure.h>
 #include <ESP32Time.h>
-#include "Base64.h"
 #include <esp_wifi.h>
 #include <Preferences.h>
-
 #include "configuration.h"
 #include "esp_camera.h"
 #include "camera_pins.h"
@@ -25,6 +23,8 @@ Notes:
 #include "http_client.h"
 #include "app_httpd.h"
 #include "telegram.h"
+
+#include "base64.h"
 
 #ifdef DISABLE_BROWNOUT
 #include "soc/soc.h"
@@ -330,92 +330,25 @@ String CaptureAndSend(bool isMotionDetected, bool forget)
   } else {
     Serial.println("-- CAPTURE & STORE IN CLOUD --");  
   }
-  String body = "";
   camera_fb_t* fb = TakePhoto();
   if(!fb) {
     Serial.println("Camera capture failed");
     return "Camera capture failed";
   }  
 
-  WiFiClientSecure client_upload;
-  client_upload.setInsecure();
   ledOn();
 
-  if (client_upload.connect(SCRIPT_DOMAIN, 443)) {
-    String head = "--ThePiratCam\r\nContent-Disposition: form-data; name=\"image\"\r\n\r\n" \
-      "data:image/png;base64,";
-    String tail = "\r\n--ThePiratCam--\r\n";
-    int estimatedImageLen = base64_enc_len(fb->len);
-    int extraLen = head.length() + tail.length();
-    int totalLen = estimatedImageLen + extraLen;
-    
-    String url = String(SCRIPT_URL_SEND_IMAGE) + "?device=" + String(DEVICE_NAME) + "&telegram=" + (isMotionDetected ? "1" : "0");
-    url = url + GetStatusQueryParams();
-
-    client_upload.printf("POST %s HTTP/1.0\r\n", url.c_str());
-    client_upload.printf("Host: %s\r\n", SCRIPT_DOMAIN);
-    client_upload.println("Connection: close");
-    client_upload.printf("Content-Length: %d\r\n", totalLen);
-    client_upload.println("Content-Type: multipart/form-data; boundary=ThePiratCam");
-    client_upload.println();
-    client_upload.print(head);
-
-    int realLen = 0;
-    int step = 1500;  // Chunk size to send the file (must be multiple of 3)
-    char *input = (char *)fb->buf;
-    char output[base64_enc_len(step)];
-    for (int i = 0; i+step < fb->len; i += step) {
-      realLen+=base64_encode(output, input, step);
-      client_upload.print(output);
-      input += step;
-      
-      if (i%1000<step) Serial.print(".");
-    }
-    // Remainder
-    int remainder = fb->len % step;
-    if (remainder > 0) {
-      char output_r[base64_enc_len(remainder)];
-      realLen+=base64_encode(output_r, input, remainder);
-      client_upload.print(output_r);
-    }
-
-    client_upload.print(tail);
-
-    Serial.println();
-    if (realLen != estimatedImageLen) {
-      Serial.println("Length not matching!");
-      Serial.println("fb len: " + String(fb->len));
-      Serial.println("est img len: " + String(estimatedImageLen));
-      Serial.println("real len: " + String(realLen));
-    }
-
-    esp_camera_fb_return(fb);
-    
-    // Wait for the response
-    if (!forget) {
-      String location = GetClientResponseLocationHeader(client_upload, true);
-      if (location.length() > 1) {
-        int statusCode;
-        body = HttpGet(location, statusCode);
-      }
-    }
-
-    if (isMotionDetected) {
-      pics_count_motion++;
-    } else {
-      pics_count_cloud_gs++;
-    }
-
-    SaveCounters();
-  }
-  else {
-    esp_camera_fb_return(fb);
-    Serial.printf("Connect to %s failed.", SCRIPT_DOMAIN);
+  String queryString = "?device=" + String(DEVICE_NAME) + "&telegram=" + (isMotionDetected ? "1" : "0") + FormatConfigValues(EXTRA_PARAMS_FORMAT);
+  String url = SCRIPT_URL_SEND_IMAGE + queryString;
+  String body = "{\"image\": \"data:image/png;base64," + base64::encode(fb->buf, fb->len) + "\"}"; 
+  esp_camera_fb_return(fb);
+  HttpResponse response = HttpPost(url, body, false);
+  if (!forget && response.status == 302) {
+    response = HttpGet(response.location);
   }
 
   ledOff();
-
-  return body;
+  return response.body;
 }
 
 String CaptureAndStore(int count) 
@@ -443,11 +376,6 @@ String CaptureAndStore(int count)
   }
 
   return "";
-}
-
-String GetStatusQueryParams() 
-{
-  return FormatConfigValues(EXTRA_PARAMS_FORMAT);
 }
 
 String GetStatusMessage() 
@@ -513,9 +441,10 @@ String refreshConfigFromWeb()
   // Call getConfig google script and store in PARAMS
   String url = String(SCRIPT_URL_GET_CONFIG);
   url.replace("{name}", String(DEVICE_NAME));
-  int statusCode;
 
-  String responseBody = HttpGet(url, statusCode);
+  HttpResponse response = HttpGet(url);
+  String responseBody = response.body;
+  int statusCode = response.status;
 
   if (statusCode == 200 && responseBody.indexOf(":") > 0) {
     String configString = responseBody.substring(responseBody.indexOf(":") + 1, responseBody.length());
@@ -546,7 +475,8 @@ String refreshConfigFromWeb()
     // Set clock time
     rtc.setTime(epoch);
     Serial.println(rtc.getTime("Set clock to: %A, %B %d %Y %H:%M:%S"));
-
+  } else {
+    Serial.println("Status code received: " + String(statusCode) + " -> " + responseBody);
   }
   
   return responseBody;
