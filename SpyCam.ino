@@ -125,8 +125,7 @@ void loop()
 
   // Capture image and send to google drive
   if (!isStreaming && !offline && PARAMS.period_gs_cloud > 0 && (cycle_count % PARAMS.period_gs_cloud == 0)) {
-    String response = CaptureAndSend(false, false);
-    Serial.println(response);    
+    CaptureAndSend(false, true);
   }
 
   // Capture and store to SD_CARD
@@ -187,8 +186,7 @@ void motionDetection(unsigned long sleep_end_time)
 
     // Upload image and notify
     if (!offline) {
-      String response = CaptureAndSend(true, true);
-      Serial.println(response);
+      CaptureAndSend(true, true);
     }
 
     const unsigned long motion_elapsed_ms = millis() - motion_start_time;
@@ -395,11 +393,11 @@ String CaptureAndSend(bool isMotionDetected, bool forget)
     
     // Wait for the response
     if (!forget) {
-      HttpResponse response = GetClientResponseBody(15, client_upload, true);
-      if (response.location.length() > 4) {
-        response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
+      String location = GetClientResponseLocationHeader(client_upload, true);
+      if (location.length() > 1) {
+        int statusCode;
+        body = HttpGet(location, statusCode);
       }
-      body = response.body;
     }
 
     if (isMotionDetected) {
@@ -513,15 +511,13 @@ String refreshConfigFromWeb()
   Serial.println("-- CONFIG REFRESH --");
 
   // Call getConfig google script and store in PARAMS
-  String url = String(SCRIPT_URL_GET_CONFIG) + "?device=" + String(DEVICE_NAME);
-  HttpResponse response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, url.c_str());
-  if (response.location.length() > 4) {
-      response = GetHttpGetResponseBody(SCRIPT_DOMAIN, 443, response.location.c_str());
-  }
+  String url = String(SCRIPT_URL_GET_CONFIG);
+  url.replace("{name}", String(DEVICE_NAME));
+  int statusCode;
 
-  String responseBody = response.body;
+  String responseBody = HttpGet(url, statusCode);
 
-  if (response.status == 200 && responseBody.indexOf(":") > 0) {
+  if (statusCode == 200 && responseBody.indexOf(":") > 0) {
     String configString = responseBody.substring(responseBody.indexOf(":") + 1, responseBody.length());
     unsigned long epoch;
 
@@ -589,6 +585,8 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     {
       const String commands = F("["
                         "{\"command\":\"pic\", \"description\":\"Take a photo\"},"
+                        "{\"command\":\"gs\", \"description\":\"Take a photo and send to google\"},"
+                        "{\"command\":\"sd\", \"description\":\"Take a photo and store in SD\"},"
                         "{\"command\":\"picflash\", \"description\":\"Take a photo with flash\"},"
                         "{\"command\":\"status\", \"description\":\"Get the current status\"},"
                         "{\"command\":\"reconfig\", \"description\":\"Reconfigure the device from web\"},"
@@ -598,7 +596,7 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     }
     else if (text == "/help" || text == "/options") 
     {
-      String keyboardJson = "[[\"/pic\", \"/picflash\", \"/status\"]]";
+      String keyboardJson = "[[\"/pic\", \"/picflash\", \"/status\", \"/gs\", \"/sd\"]]";
       telegramBot->SendMessageWithReplyKeyboard("Choose from one of the following options", keyboardJson);
     }    
     else if (text == "/status") 
@@ -618,9 +616,19 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
           telegramBot->SendMessage("Camera capture failed");
         }
     }
+    else if (text == "/gs") {
+      // Send to google
+      telegramBot->SendMessage("Send to google");
+      CaptureAndSend(false, true);
+    }
+    else if (text == "/sd") {
+      // Capture to SD
+      telegramBot->SendMessage("Capture to SD");
+      CaptureAndStore(1);
+    }    
     else if (text == "/reconfig") 
     {
-        reconfigOnNextCycle = true;
+      reconfigOnNextCycle = true;
     }
     else if (text == "/restart") 
     {
