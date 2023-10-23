@@ -197,6 +197,18 @@ void motionDetection(unsigned long sleep_end_time)
   }
 }
 
+void DiscardImages(int count)
+{
+    for(int i = 0; i < count; i++) {
+      camera_fb_t* fb = esp_camera_fb_get();  
+      if (!fb) {
+        return;
+      }
+      esp_camera_fb_return(fb);
+      delay(1);
+  }
+}
+
 bool initCamera() 
 {
   //esp_camera_deinit();
@@ -213,16 +225,8 @@ bool initCamera()
   sensor_t * s = esp_camera_sensor_get();
   s->set_framesize(s, cam_config.frame_size); 
   
-  // Try to get an image
-  for(int i = 0; i < 2; i++) {
-    camera_fb_t* fb = TakePhoto();
-    if (!fb) {
-      Serial.println("Camera first capture failed");
-      return false;
-    }
-    esp_camera_fb_return(fb);
-    delay(1);
-  }
+  // Discard first images
+  DiscardImages(5);
 
   return true;
 }
