@@ -15,10 +15,6 @@ const char* CONFIG_FILE = "/config.txt";
 
 #define TLGRM_BOT_TOKEN "XXXXXXXXXXXXXXXXXX" // ThePiratCam
 #define TLGRM_CHAT_ID "123123123123" // ThePiratCam
-/*
-#define TLGRM_BOT_TOKEN "6368621665:AAE_rb9bjkBNLEOOofSad-jJYGygaeWdpEM" // ThePiratCam2
-#define TLGRM_CHAT_ID "6368621665" // ThePiratCam2
-*/
 
 // Config. These configs can be overriden in the config.txt file
 String DEVICE_NAME = "LUNA3";
