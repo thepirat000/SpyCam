@@ -384,9 +384,10 @@ String CaptureAndStore(int count)
 
 String GetStatusMessage() 
 {
-  String status = DEVICE_NAME + " IP: " + WiFi.localIP().toString() + " / " + publicIpAddress + "\r\n"  ;
+  String status = DEVICE_NAME + " IP: " + WiFi.localIP().toString() + " / " + publicIpAddress + "\r\n" ;
+  status.concat(rtc.getTime("Date: %Y-%m-%d %H:%M:%S\r\n"));
   status.concat(FormatConfigValues(STATUS_PARAMS_FORMAT));
-
+  
   return status;
 }
 

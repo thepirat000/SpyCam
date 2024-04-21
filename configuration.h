@@ -13,15 +13,15 @@ const char* CONFIG_FILE = "/config.txt";
 
 // Config telegram
 
-#define TLGRM_BOT_TOKEN "XXXXXXXXXXXXXXXXXX" // ThePiratCam
-#define TLGRM_CHAT_ID "123123123123" // ThePiratCam
+#define TLGRM_BOT_TOKEN "5819769507:AAFPuSvPSbiHDhLXULUuv7ex8jwGNxR_lmM" // ThePiratCam
+#define TLGRM_CHAT_ID "6271761053" // ThePiratCam
 /*
 #define TLGRM_BOT_TOKEN "6368621665:AAE_rb9bjkBNLEOOofSad-jJYGygaeWdpEM" // ThePiratCam2
 #define TLGRM_CHAT_ID "6368621665" // ThePiratCam2
 */
 
 // Config. These configs can be overriden in the config.txt file
-String DEVICE_NAME = "LUNA3";
+String DEVICE_NAME = "HOME";
 String SSID = "THEPIRAT_2.4G"; // "ThePirat++";
 String PASSWORD = "333" + String(175 * 23029);
 int SERVER_PORT = 80;
@@ -38,11 +38,11 @@ const char *SOFT_AP_PASSWORD      = "123456789";
 #endif
 
 // Google app scripts URLs
-const char* SCRIPT_URL_SEND_IMAGE = "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXX/exec";
-const char* SCRIPT_URL_GET_CONFIG = "https://script.google.com/macros/s/XXXXXXXXXXXXXXXXXXX/exec?device={name}";
+const char* SCRIPT_URL_SEND_IMAGE = "https://script.google.com/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8aDDsXQDcugzOxXAo_Um1btoAK8wBxRF6a3NhbYH/exec";
+const char* SCRIPT_URL_GET_CONFIG = "https://script.google.com/macros/s/AKfycbx98K1CEm6J2UOru5oSj10g2O3X8aDDsXQDcugzOxXAo_Um1btoAK8wBxRF6a3NhbYH/exec?device={name}";
 
 const char* WEB_SERVER_USER = "admin";
-const char* WEB_SERVER_PASSWORD = "admin";
+const char* WEB_SERVER_PASSWORD = "fede";
 
 struct Params
 {
