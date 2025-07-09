@@ -158,8 +158,6 @@ uint64_t GetUsedSizeMB() {
 }
 
 bool SD_init(){
-    
-
     if(!SD_MMC.begin("/sdcard", true)) {
         Serial.println("Card Mount Failed");
         return false;

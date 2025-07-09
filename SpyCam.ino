@@ -1,8 +1,8 @@
 /* ThePirat 2023
 
 Requisites:
-- Use esp32 library version 1.0.6 
-- Board Type: AI Thinker
+- Use esp32 library version 2.0.11
+- Board Type: AI Thinker ESP32-CAM (esp32)
 - Google App Scripts 
 
 Notes:
@@ -14,6 +14,7 @@ Notes:
 
 #include <WiFiClientSecure.h>
 #include <ESP32Time.h>
+#include <WiFi.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
 #include "configuration.h"
@@ -25,6 +26,7 @@ Notes:
 #include "telegram.h"
 
 #include "base64.h"
+#include "driver/gpio.h"
 
 #ifdef DISABLE_BROWNOUT
 #include "soc/soc.h"
@@ -64,8 +66,9 @@ void setup()
 
   esp_reset_reason_t reason = esp_reset_reason();
   
+  Serial.println("Starting V2...");
+
   preferences.begin("SpyCam", false);
-  telegramBot = new Telegram(TLGRM_BOT_TOKEN, TLGRM_CHAT_ID, preferences.getLong("message_id"), HandleTelegramMessage);
 
   GetCounters();
   
@@ -76,10 +79,13 @@ void setup()
   pinMode(LED_BUILTIN_GPIO_NUM, OUTPUT);
   pinMode(FLASH_GPIO_NUM, OUTPUT);
   pinMode(PIR_SENSOR_NUM, INPUT);
+  gpio_hold_dis(GPIO_NUM_4);
 
   SD_init();
 
   setConfigFromFile();
+
+  telegramBot = new Telegram(TLGRM_BOT_TOKEN, TLGRM_CHAT_ID, preferences.getLong("message_id"), HandleTelegramMessage);
 
   flashOff();
   
@@ -432,6 +438,8 @@ void setConfigFromFile()
         if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { PRIMARYDNS.fromString(tmp); } }
         if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 5) { SECONDARYDNS.fromString(tmp); } }
         if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 1) { SERVER_PORT = tmp.toInt(); } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 1) { TLGRM_BOT_TOKEN = tmp; } }
+        if(file.available()) { tmp = file.readStringUntil('\n'); tmp.trim(); if (tmp.length() > 1) { TLGRM_CHAT_ID = tmp; } }
       }
       file.close();
     }
@@ -525,13 +533,15 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
                         "{\"command\":\"picflash\", \"description\":\"Take a photo with flash\"},"
                         "{\"command\":\"status\", \"description\":\"Get the current status\"},"
                         "{\"command\":\"reconfig\", \"description\":\"Reconfigure the device from web\"},"
-                        "{\"command\":\"options\",\"description\":\"Show the options menu\"}"
+                        "{\"command\":\"options\",\"description\":\"Show the options menu\"},"
+                        "{\"command\":\"flashon\",\"description\":\"Turn flash on\"},"
+                        "{\"command\":\"flashoff\",\"description\":\"Turn flash off\"}"
                         "]");
       telegramBot->SetCommands(commands);
     }
     else if (text == "/help" || text == "/options") 
     {
-      String keyboardJson = "[[\"/pic\", \"/picflash\", \"/status\", \"/gs\", \"/sd\"]]";
+      String keyboardJson = "[[\"/pic\", \"/picflash\", \"/status\", \"/gs\", \"/sd\", \"/flashon\", \"/flashoff\"]]";
       telegramBot->SendMessageWithReplyKeyboard("Choose from one of the following options", keyboardJson);
     }    
     else if (text == "/status") 
@@ -568,6 +578,14 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     else if (text == "/restart") 
     {
         Restart();
+    }
+    else if (text == "/flashon") 
+    {
+        flashOn();
+    }
+    else if (text == "/flashoff") 
+    {
+        flashOff();
     }
 }
 
