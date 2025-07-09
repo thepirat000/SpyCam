@@ -13,8 +13,8 @@ const char* CONFIG_FILE = "/config.txt";
 
 // Config telegram
 
-String TLGRM_BOT_TOKEN = "5819769507:AAFPuSvPSbiHDhLXULUuv7ex8jwGNxR_lmM"; // ThePiratCam
-String TLGRM_CHAT_ID = "6271761053"; // ThePiratCam
+String TLGRM_BOT_TOKEN = "123456:xxxxxxx"; // ThePiratCam
+String TLGRM_CHAT_ID = "123456"; // ThePiratCam
 
 // Config. These configs can be overriden in the config.txt file
 String DEVICE_NAME = "HOME";
