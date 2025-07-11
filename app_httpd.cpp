@@ -247,6 +247,7 @@ static esp_err_t cmd_handler(httpd_req_t *req)
     else if(!strcmp(variable, "special_effect")) res = s->set_special_effect(s, val);
     else if(!strcmp(variable, "wb_mode")) res = s->set_wb_mode(s, val);
     else if(!strcmp(variable, "ae_level")) res = s->set_ae_level(s, val);
+    else if(!strcmp(variable, "flash")) { if (val == 1) { digitalWrite(4, 0x1); } else { digitalWrite(4, 0x0); } res = 0; }
     else {
         res = -1;
     }

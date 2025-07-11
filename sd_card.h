@@ -1,3 +1,4 @@
+#pragma once
 /*
  * Connect the SD card to the following pins:
  *

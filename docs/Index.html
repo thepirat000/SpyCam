@@ -28,7 +28,7 @@
             #menu {
                 display: none;
                 flex-wrap: nowrap;
-                min-width: 340px;
+                min-width: 400px;
                 background: #363636;
                 padding: 8px;
                 border-radius: 4px;
@@ -118,7 +118,7 @@
                 display: flex;
                 flex-wrap: nowrap;
                 line-height: 22px;
-                margin: 5px 0
+                margin: 5px 5px;
             }
 
             .input-group>label {
@@ -266,10 +266,7 @@
             }
 
             .switch input {
-                outline: 0;
-                opacity: 0;
-                width: 0;
-                height: 0
+				display: none;
             }
 
             .slider {
@@ -529,6 +526,13 @@
                             <div class="switch">
                                 <input id="colorbar" type="checkbox" class="default-action">
                                 <label class="slider" for="colorbar"></label>
+                            </div>
+                        </div>
+						<div class="input-group" id="flash-group">
+                            <label for="flash">LED (Flash)</label>
+                            <div class="switch">
+                                <input id="flash" type="checkbox" class="default-action">
+                                <label class="slider" for="flash"></label>
                             </div>
                         </div>
                         <section id="buttons">

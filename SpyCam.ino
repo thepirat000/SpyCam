@@ -58,7 +58,6 @@ const String STATUS_PARAMS_FORMAT = "{mins_up} mins up - WiFi: {wifi_signal} dBm
 
 bool reconfigOnNextCycle = false;
 
-// **** SETUP **** //
 void setup() 
 {
   Serial.begin(115200);
@@ -122,11 +121,17 @@ void loop()
   if (cycle_count == 1) {
     // Send the start message
     telegramBot->SendMessage(DEVICE_NAME + " is online. Reset reason: " + String(reset_reason) + "\r\n" + GetStatusMessage());
+    CaptureAndSendTelegram(false);
   }
 
   // Check for telegram new message commands
-  if (!isStreaming && !offline && PARAMS.period_telegram > 0 && (cycle_count % PARAMS.period_telegram == 0)) {
+  if (!isStreaming && !offline) {
     telegramBot->ProcessInputMessages();
+  }
+
+  // Capture image and send to telegram
+  if (!isStreaming && !offline && PARAMS.period_telegram > 0 && (cycle_count % PARAMS.period_telegram == 0)) {
+    CaptureAndSendTelegram(false);
   }
 
   // Capture image and send to google drive
@@ -237,6 +242,7 @@ bool initCamera()
   return true;
 }
 
+#pragma region WiFi
 bool startWiFi() 
 {
   // The following two lines are needed just in case the device is in LR mode 
@@ -307,6 +313,7 @@ void reconnectWifi()
     wifi_prev_ms = current_ms;
   }
 }
+#pragma endregion
 
 camera_fb_t* TakePhoto(bool flash) 
 {
@@ -388,9 +395,22 @@ String CaptureAndStore(int count)
   return "";
 }
 
+void CaptureAndSendTelegram(bool flash)
+{
+  camera_fb_t* fb = TakePhoto(flash);
+  if(fb) {
+    telegramBot->SendImage(fb->buf, fb->len);
+    
+    esp_camera_fb_return(fb);
+  } else {
+    Serial.println("Camera capture failed");
+    telegramBot->SendMessage("Camera capture failed");
+  }
+}
+
 String GetStatusMessage() 
 {
-  String status = DEVICE_NAME + " IP: " + WiFi.localIP().toString() + " / " + publicIpAddress + "\r\n" ;
+  String status = DEVICE_NAME + " IP: " + WiFi.localIP().toString() + ":" + SERVER_PORT + " / " + publicIpAddress + ":" + SERVER_PORT + "\r\n" ;
   status.concat(rtc.getTime("Date: %Y-%m-%d %H:%M:%S\r\n"));
   status.concat(FormatConfigValues(STATUS_PARAMS_FORMAT));
   
@@ -411,6 +431,8 @@ String FormatConfigValues(String format)
 
   return format;
 }
+
+#pragma region Config
 
 // Sets the configuration from the /config.txt file in the SD card, if present
 void setConfigFromFile() 
@@ -459,9 +481,13 @@ String refreshConfigFromWeb()
   String responseBody = response.body;
   int statusCode = response.status;
 
+  Serial.println("-- CONFIG REFRESH - AFTER GET 1 --");
+
   if (statusCode == 200 && responseBody.indexOf(":") > 0) {
     String configString = responseBody.substring(responseBody.indexOf(":") + 1, responseBody.length());
     unsigned long epoch;
+
+    Serial.println("-- CONFIG REFRESH - AFTER GET 2 --");
 
     if (lastConfigString != configString) {
       Serial.println(String(lastConfigString.length() == 0 ? "Initial" : "New") + " params: " + configString);
@@ -485,6 +511,8 @@ String refreshConfigFromWeb()
       sscanf(responseBody.c_str(), "%U:%*s", &epoch);
     }
 
+    Serial.println("-- CONFIG REFRESH - AFTER GET 3 --");
+
     // Set clock time
     rtc.setTime(epoch);
     Serial.println(rtc.getTime("Set clock to: %A, %B %d %Y %H:%M:%S"));
@@ -492,6 +520,8 @@ String refreshConfigFromWeb()
     Serial.println("Status code received: " + String(statusCode) + " -> " + responseBody);
   }
   
+  Serial.println("-- CONFIG REFRESH - AFTER GET 4 --");
+
   return responseBody;
 }
 
@@ -504,6 +534,8 @@ void setCamConfigFromParams()
   s->set_brightness(s, PARAMS.brigthness);
   s->set_saturation(s, PARAMS.saturation);  
 }
+
+#pragma endregion
 
 // Serial commands (for debug)
 void serialInput() 
@@ -551,15 +583,7 @@ void HandleTelegramMessage(const String& text, const String& chat_id, const Stri
     else if (text.startsWith("/pic")) 
     {
         bool flash = text.indexOf("flash") > 0;
-        camera_fb_t* fb = TakePhoto(flash);
-        if(fb) {
-          telegramBot->SendImage(fb->buf, fb->len);
-          
-          esp_camera_fb_return(fb);
-        } else {
-          Serial.println("Camera capture failed");
-          telegramBot->SendMessage("Camera capture failed");
-        }
+        CaptureAndSendTelegram(flash);
     }
     else if (text == "/gs") {
       // Send to google
